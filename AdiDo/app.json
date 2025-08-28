@@ -1,0 +1,14 @@
+{
+  "name": "AdiDo",
+  "displayName": "AdiDo",
+  "expo": {
+    "name": "AdiDo",
+    "slug": "adido",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "webpack"
+    }
+  }
+}
