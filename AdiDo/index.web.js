@@ -638,84 +638,136 @@ function loadTabContent(tab) {
     
   } else if (tab === 'events') {
     content.innerHTML = `
-      <h2 style="color: #333; margin-bottom: 20px;">Events</h2>
       <div style="
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #ddd;
-        margin-bottom: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
       ">
+        <div style="
+          display: flex;
+          align-items: center;
+          margin-bottom: 24px;
+        ">
+          <div style="
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+          ">
+            <span style="font-size: 20px;">📅</span>
+          </div>
+          <h2 style="
+            color: #1a202c;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+          ">Events</h2>
+        </div>
+        
+        <div style="
+          margin-bottom: 24px;
+        ">
         <input type="text" id="eventNameInput" placeholder="Event name..." style="
           width: 100%;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          background-color: white;
-          margin-bottom: 15px;
+          height: 56px;
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 0 20px;
+          background-color: #f8fafc;
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
           box-sizing: border-box;
+          margin-bottom: 16px;
         ">
         
         <textarea id="eventDescriptionInput" placeholder="Event description..." style="
           width: 100%;
           height: 80px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 15px;
-          background-color: white;
-          margin-bottom: 15px;
-          box-sizing: border-box;
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 16px 20px;
+          background-color: #f8fafc;
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
           resize: vertical;
-          font-family: Arial, sans-serif;
+          font-family: inherit;
+          box-sizing: border-box;
+          margin-bottom: 16px;
         "></textarea>
         
         <input type="text" id="eventLocationInput" placeholder="Location..." style="
           width: 100%;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          background-color: white;
-          margin-bottom: 15px;
+          height: 56px;
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 0 20px;
+          background-color: #f8fafc;
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
           box-sizing: border-box;
+          margin-bottom: 16px;
         ">
         
-        <div style="display: flex; margin-bottom: 15px; align-items: center;">
+        <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
           <input type="date" id="eventDateInput" style="
             flex: 1;
-            height: 50px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 0 15px;
-            background-color: white;
-            margin-right: 10px;
+            height: 56px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
             box-sizing: border-box;
           ">
           <input type="time" id="eventTimeInput" style="
             flex: 1;
-            height: 50px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 0 15px;
-            background-color: white;
+            height: 56px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
             box-sizing: border-box;
           ">
         </div>
         
         <button id="addEventBtn" style="
           width: 100%;
-          height: 50px;
-          background-color: #FF9500;
+          height: 56px;
+          background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
           color: white;
           border: none;
-          border-radius: 8px;
-          font-size: 18px;
-          font-weight: bold;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
           cursor: pointer;
-        ">Add Event</button>
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">+ Add Event</button>
+        </div>
       </div>
-      <div id="eventsList"></div>
+      <div id="eventsList" style="
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      "></div>
     `;
     
     document.getElementById('addEventBtn').addEventListener('click', addEvent);
@@ -727,30 +779,73 @@ function loadTabContent(tab) {
     
   } else if (tab === 'profile') {
     content.innerHTML = `
-      <h2 style="color: #333; margin-bottom: 20px;">Profile</h2>
       <div style="
-        background-color: white;
-        padding: 30px;
-        border-radius: 12px;
-        border: 1px solid #ddd;
-        text-align: center;
-        margin-bottom: 30px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
       ">
-        <h3>Welcome, ${currentUser?.email || 'User'}!</h3>
-        <p style="color: #666;">Shared with your partner</p>
-      </div>
+        <div style="
+          display: flex;
+          align-items: center;
+          margin-bottom: 24px;
+        ">
+          <div style="
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+          ">
+            <span style="font-size: 20px;">👤</span>
+          </div>
+          <h2 style="
+            color: #1a202c;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+          ">Profile</h2>
+        </div>
+        
+        <div style="
+          text-align: center;
+          margin-bottom: 24px;
+        ">
+          <h3 style="
+            color: #1a202c;
+            margin-bottom: 8px;
+            font-size: 20px;
+            font-weight: 600;
+          ">Welcome, ${currentUser?.email || 'User'}!</h3>
+          <p style="
+            color: #64748b;
+            margin: 0;
+            font-size: 16px;
+          ">Shared with your partner</p>
+        </div>
       
-      <button id="logoutBtn" style="
-        width: 100%;
-        padding: 15px;
-        background-color: #FF3B30;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 18px;
-        font-weight: bold;
-        cursor: pointer;
-      ">Logout</button>
+        <button id="logoutBtn" style="
+          width: 100%;
+          height: 56px;
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">Sign Out</button>
+      </div>
     `;
     
     document.getElementById('logoutBtn').addEventListener('click', async () => {
