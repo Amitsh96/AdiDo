@@ -208,21 +208,21 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.95);
-            color: #667eea;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            color: white;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
           ">📝 Todo</button>
           <button class="nav-tab" data-tab="grocery" style="
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -233,8 +233,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -245,8 +245,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -342,15 +342,15 @@ function setupEventListeners() {
       // Update active tab
       document.querySelectorAll('.nav-tab').forEach(t => {
         t.classList.remove('active');
-        t.style.background = 'rgba(255, 255, 255, 0.2)';
-        t.style.color = 'rgba(255, 255, 255, 0.8)';
+        t.style.background = 'rgba(255, 255, 255, 0.15)';
+        t.style.color = '#1a202c';
         t.style.boxShadow = 'none';
       });
       
       e.target.classList.add('active');
-      e.target.style.background = 'rgba(255, 255, 255, 0.95)';
-      e.target.style.color = '#667eea';
-      e.target.style.boxShadow = '0 2px 8px rgba(255, 255, 255, 0.3)';
+      e.target.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
+      e.target.style.color = 'white';
+      e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
       
       // Load content
       loadTabContent(e.target.dataset.tab);
