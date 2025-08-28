@@ -15,7 +15,7 @@ module.exports = (env, argv) => {
     output: {
       path: path.resolve(__dirname, 'dist'),
       filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
-      publicPath: '/',
+      publicPath: './',
       clean: true,
     },
   module: {
