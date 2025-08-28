@@ -11,7 +11,7 @@ module.exports = (env, argv) => {
   
   return {
     mode: isProduction ? 'production' : 'development',
-    entry: './index.web.js',
+    entry: './test-simple.js',
     output: {
       path: path.resolve(__dirname, 'dist'),
       filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
