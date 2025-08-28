@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 // Set environment variables for web
 process.env.PLATFORM = 'web';
@@ -49,6 +50,14 @@ module.exports = (env, argv) => {
   plugins: [
     new HtmlWebpackPlugin({
       template: './web/index.html'
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'web/favicon.svg', to: 'favicon.svg' }
+      ]
+    }),
+    new webpack.ProvidePlugin({
+      React: 'react',
     })
   ],
   devServer: {
