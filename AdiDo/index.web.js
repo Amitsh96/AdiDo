@@ -28,6 +28,42 @@ let events = [];
 
 // Create the main app HTML
 function createApp() {
+  // Add responsive styles
+  const styleElement = document.createElement('style');
+  styleElement.textContent = `
+    @media (max-width: 480px) {
+      .grocery-controls-container {
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+      .grocery-controls-container > div:first-child {
+        max-width: 100% !important;
+        min-width: auto !important;
+      }
+      .grocery-controls-container > button {
+        width: 100% !important;
+        max-width: none !important;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body, html {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+    #app {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+    @media (max-width: 480px) {
+      #content {
+        padding: 16px !important;
+      }
+    }
+  `;
+  document.head.appendChild(styleElement);
+  
   const root = document.getElementById('root');
   root.innerHTML = `
     <div id="app" style="
@@ -461,13 +497,10 @@ function loadTabContent(tab) {
         </div>
         
         <div style="
-          display: flex;
-          gap: 12px;
           margin-bottom: 24px;
-          align-items: center;
         ">
           <input type="text" id="groceryInput" placeholder="What do you need to buy?" style="
-            flex: 1;
+            width: 100%;
             height: 56px;
             border: 2px solid #e2e8f0;
             border-radius: 12px;
@@ -477,77 +510,90 @@ function loadTabContent(tab) {
             transition: all 0.2s;
             outline: none;
             box-sizing: border-box;
+            margin-bottom: 12px;
           ">
           
-          <div style="
+          <div class="grocery-controls-container" style="
             display: flex;
+            gap: 12px;
             align-items: center;
-            background-color: #f8fafc;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            height: 56px;
-            padding: 0 4px;
+            flex-wrap: wrap;
           ">
-            <button id="quantityDownBtn" style="
-              width: 40px;
-              height: 48px;
-              border: none;
-              background: none;
-              color: #64748b;
-              font-size: 18px;
-              font-weight: bold;
-              cursor: pointer;
+            <div style="
               display: flex;
               align-items: center;
-              justify-content: center;
-              border-radius: 8px;
-              transition: all 0.2s;
-            ">−</button>
-            <input type="text" id="quantityInput" placeholder="1" value="1" style="
-              width: 48px;
-              height: 48px;
-              border: none;
-              background: none;
-              padding: 0;
-              text-align: center;
-              font-size: 16px;
-              font-weight: 600;
-              outline: none;
-              color: #1a202c;
+              background-color: #f8fafc;
+              border: 2px solid #e2e8f0;
+              border-radius: 12px;
+              height: 56px;
+              padding: 0 4px;
+              flex: 1;
+              min-width: 140px;
+              max-width: 160px;
             ">
-            <button id="quantityUpBtn" style="
-              width: 40px;
-              height: 48px;
+              <button id="quantityDownBtn" style="
+                width: 40px;
+                height: 48px;
+                border: none;
+                background: none;
+                color: #64748b;
+                font-size: 18px;
+                font-weight: bold;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                transition: all 0.2s;
+              ">−</button>
+              <input type="text" id="quantityInput" placeholder="1" value="1" style="
+                flex: 1;
+                height: 48px;
+                border: none;
+                background: none;
+                padding: 0;
+                text-align: center;
+                font-size: 16px;
+                font-weight: 600;
+                outline: none;
+                color: #1a202c;
+                min-width: 0;
+              ">
+              <button id="quantityUpBtn" style="
+                width: 40px;
+                height: 48px;
+                border: none;
+                background: none;
+                color: #64748b;
+                font-size: 18px;
+                font-weight: bold;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                transition: all 0.2s;
+              ">+</button>
+            </div>
+            
+            <button id="addGroceryBtn" style="
+              width: 56px;
+              height: 56px;
+              background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+              color: white;
               border: none;
-              background: none;
-              color: #64748b;
-              font-size: 18px;
+              border-radius: 12px;
+              font-size: 20px;
               font-weight: bold;
               cursor: pointer;
+              transition: all 0.2s;
+              box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
               display: flex;
               align-items: center;
               justify-content: center;
-              border-radius: 8px;
-              transition: all 0.2s;
+              flex-shrink: 0;
             ">+</button>
           </div>
-          
-          <button id="addGroceryBtn" style="
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          ">+</button>
         </div>
       </div>
       <div id="groceriesList" style="

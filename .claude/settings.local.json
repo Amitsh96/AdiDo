@@ -9,7 +9,9 @@
       "Bash(git push:*)",
       "Bash(npm run build:web:*)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": [],
     "ask": []
