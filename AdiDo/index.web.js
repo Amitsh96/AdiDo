@@ -24,6 +24,7 @@ const db = getFirestore(app);
 let currentUser = null;
 let todos = [];
 let groceries = [];
+let events = [];
 
 // Create the main app HTML
 function createApp() {
@@ -132,6 +133,16 @@ function createApp() {
             border-bottom: 2px solid transparent;
             cursor: pointer;
           ">Grocery</button>
+          <button class="nav-tab" data-tab="events" style="
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: white;
+            color: #666;
+            font-size: 16px;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+          ">Events</button>
           <button class="nav-tab" data-tab="profile" style="
             flex: 1;
             padding: 15px;
@@ -342,6 +353,95 @@ function loadTabContent(tab) {
     
     renderGroceries();
     
+  } else if (tab === 'events') {
+    content.innerHTML = `
+      <h2 style="color: #333; margin-bottom: 20px;">Events</h2>
+      <div style="
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #ddd;
+        margin-bottom: 20px;
+      ">
+        <input type="text" id="eventNameInput" placeholder="Event name..." style="
+          width: 100%;
+          height: 50px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 0 15px;
+          background-color: white;
+          margin-bottom: 15px;
+          box-sizing: border-box;
+        ">
+        
+        <textarea id="eventDescriptionInput" placeholder="Event description..." style="
+          width: 100%;
+          height: 80px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 15px;
+          background-color: white;
+          margin-bottom: 15px;
+          box-sizing: border-box;
+          resize: vertical;
+          font-family: Arial, sans-serif;
+        "></textarea>
+        
+        <input type="text" id="eventLocationInput" placeholder="Location..." style="
+          width: 100%;
+          height: 50px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 0 15px;
+          background-color: white;
+          margin-bottom: 15px;
+          box-sizing: border-box;
+        ">
+        
+        <div style="display: flex; margin-bottom: 15px; align-items: center;">
+          <input type="date" id="eventDateInput" style="
+            flex: 1;
+            height: 50px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 0 15px;
+            background-color: white;
+            margin-right: 10px;
+            box-sizing: border-box;
+          ">
+          <input type="time" id="eventTimeInput" style="
+            flex: 1;
+            height: 50px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 0 15px;
+            background-color: white;
+            box-sizing: border-box;
+          ">
+        </div>
+        
+        <button id="addEventBtn" style="
+          width: 100%;
+          height: 50px;
+          background-color: #FF9500;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 18px;
+          font-weight: bold;
+          cursor: pointer;
+        ">Add Event</button>
+      </div>
+      <div id="eventsList"></div>
+    `;
+    
+    document.getElementById('addEventBtn').addEventListener('click', addEvent);
+    document.getElementById('eventNameInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addEvent();
+    });
+    
+    renderEvents();
+    
   } else if (tab === 'profile') {
     content.innerHTML = `
       <h2 style="color: #333; margin-bottom: 20px;">Profile</h2>
@@ -418,6 +518,44 @@ async function addGrocery() {
       quantityInput.value = '1';
     } catch (error) {
       console.error('Error adding grocery:', error);
+    }
+  }
+}
+
+async function addEvent() {
+  const nameInput = document.getElementById('eventNameInput');
+  const descriptionInput = document.getElementById('eventDescriptionInput');
+  const locationInput = document.getElementById('eventLocationInput');
+  const dateInput = document.getElementById('eventDateInput');
+  const timeInput = document.getElementById('eventTimeInput');
+  
+  const name = nameInput.value.trim();
+  const description = descriptionInput.value.trim();
+  const location = locationInput.value.trim();
+  const date = dateInput.value;
+  const time = timeInput.value;
+  
+  if (name && date && currentUser) {
+    try {
+      const eventDateTime = new Date(`${date}T${time || '00:00'}`);
+      
+      await addDoc(collection(db, 'events'), {
+        name: name,
+        description: description || '',
+        location: location || '',
+        datetime: eventDateTime,
+        userId: currentUser.uid,
+        createdAt: serverTimestamp()
+      });
+      
+      // Clear inputs
+      nameInput.value = '';
+      descriptionInput.value = '';
+      locationInput.value = '';
+      dateInput.value = '';
+      timeInput.value = '';
+    } catch (error) {
+      console.error('Error adding event:', error);
     }
   }
 }
@@ -520,6 +658,88 @@ function renderGroceries() {
   `).join('');
 }
 
+function renderEvents() {
+  const eventsList = document.getElementById('eventsList');
+  if (!eventsList) return;
+  
+  // Sort events by datetime
+  const sortedEvents = [...events].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  
+  eventsList.innerHTML = sortedEvents.map(event => {
+    const eventDate = new Date(event.datetime);
+    const isUpcoming = eventDate > new Date();
+    const dateStr = eventDate.toLocaleDateString();
+    const timeStr = eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    return `
+      <div style="
+        background-color: white;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-radius: 12px;
+        border: 1px solid #ddd;
+        border-left: 4px solid ${isUpcoming ? '#FF9500' : '#ccc'};
+      ">
+        <div style="display: flex; justify-content: between; align-items: flex-start;">
+          <div style="flex: 1;">
+            <h3 style="
+              margin: 0 0 8px 0;
+              color: ${isUpcoming ? '#333' : '#666'};
+              font-size: 18px;
+            ">${event.name}</h3>
+            
+            ${event.description ? `
+              <p style="
+                margin: 0 0 12px 0;
+                color: #666;
+                line-height: 1.4;
+              ">${event.description}</p>
+            ` : ''}
+            
+            <div style="
+              display: flex;
+              flex-wrap: wrap;
+              gap: 15px;
+              margin-bottom: 8px;
+            ">
+              <div style="
+                display: flex;
+                align-items: center;
+                color: #666;
+                font-size: 14px;
+              ">
+                📅 ${dateStr} at ${timeStr}
+              </div>
+              
+              ${event.location ? `
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  color: #666;
+                  font-size: 14px;
+                ">
+                  📍 ${event.location}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          
+          <button onclick="deleteEvent('${event.id}')" style="
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: none;
+            color: #FF3B30;
+            font-size: 20px;
+            cursor: pointer;
+            margin-left: 10px;
+          ">×</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // Global functions for onclick handlers
 window.toggleTodo = async (id) => {
   const todo = todos.find(t => t.id === id);
@@ -535,12 +755,10 @@ window.toggleTodo = async (id) => {
 };
 
 window.deleteTodo = async (id) => {
-  if (confirm('Are you sure you want to delete this todo item?')) {
-    try {
-      await deleteDoc(doc(db, 'todos', id));
-    } catch (error) {
-      console.error('Error deleting todo:', error);
-    }
+  try {
+    await deleteDoc(doc(db, 'todos', id));
+  } catch (error) {
+    console.error('Error deleting todo:', error);
   }
 };
 
@@ -558,12 +776,18 @@ window.toggleGrocery = async (id) => {
 };
 
 window.deleteGrocery = async (id) => {
-  if (confirm('Are you sure you want to delete this grocery item?')) {
-    try {
-      await deleteDoc(doc(db, 'groceries', id));
-    } catch (error) {
-      console.error('Error deleting grocery:', error);
-    }
+  try {
+    await deleteDoc(doc(db, 'groceries', id));
+  } catch (error) {
+    console.error('Error deleting grocery:', error);
+  }
+};
+
+window.deleteEvent = async (id) => {
+  try {
+    await deleteDoc(doc(db, 'events', id));
+  } catch (error) {
+    console.error('Error deleting event:', error);
   }
 };
 
@@ -594,11 +818,23 @@ onAuthStateChanged(auth, (user) => {
       renderGroceries();
     });
     
+    // Set up real-time listeners for events
+    const eventsQuery = query(collection(db, 'events'), where('userId', '==', user.uid));
+    onSnapshot(eventsQuery, (snapshot) => {
+      events = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        datetime: doc.data().datetime.toDate() // Convert Firestore Timestamp to Date
+      }));
+      renderEvents();
+    });
+    
   } else {
     console.log('User signed out');
     showLoginScreen();
     todos = [];
     groceries = [];
+    events = [];
   }
 });
 
