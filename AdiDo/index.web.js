@@ -208,21 +208,21 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.3);
           ">📝 Todo</button>
           <button class="nav-tab" data-tab="grocery" style="
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(100, 116, 139, 0.1);
-            color: #64748b;
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -233,8 +233,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(100, 116, 139, 0.1);
-            color: #64748b;
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -245,8 +245,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(100, 116, 139, 0.1);
-            color: #64748b;
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -342,13 +342,15 @@ function setupEventListeners() {
       // Update active tab
       document.querySelectorAll('.nav-tab').forEach(t => {
         t.classList.remove('active');
-        t.style.color = '#666';
-        t.style.borderBottom = '2px solid transparent';
+        t.style.background = 'rgba(255, 255, 255, 0.2)';
+        t.style.color = 'rgba(255, 255, 255, 0.8)';
+        t.style.boxShadow = 'none';
       });
       
       e.target.classList.add('active');
-      e.target.style.color = '#007AFF';
-      e.target.style.borderBottom = '2px solid #007AFF';
+      e.target.style.background = 'rgba(255, 255, 255, 0.95)';
+      e.target.style.color = '#667eea';
+      e.target.style.boxShadow = '0 2px 8px rgba(255, 255, 255, 0.3)';
       
       // Load content
       loadTabContent(e.target.dataset.tab);
