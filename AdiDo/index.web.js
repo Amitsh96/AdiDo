@@ -32,8 +32,9 @@ function createApp() {
   root.innerHTML = `
     <div id="app" style="
       min-height: 100vh; 
-      background-color: #f5f5f5; 
-      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1a202c;
     ">
       <!-- Login Screen -->
       <div id="loginScreen" style="
@@ -43,119 +44,186 @@ function createApp() {
         align-items: center;
         padding: 20px;
         min-height: 100vh;
+        position: relative;
       ">
-        <h1 style="
-          font-size: 48px;
-          font-weight: bold;
-          color: #007AFF;
-          margin-bottom: 10px;
-        ">AdiDo</h1>
-        <p style="
-          font-size: 16px;
-          color: #666;
-          margin-bottom: 40px;
-        ">Your shared todo & grocery lists</p>
-        
-        <input type="email" id="emailInput" placeholder="Email" style="
-          width: 300px;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          margin-bottom: 15px;
-          background-color: white;
+        <div style="
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          padding: 48px;
+          border-radius: 20px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          width: 100%;
+          max-width: 400px;
+          text-align: center;
         ">
+          <div style="
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            margin: 0 auto 24px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+          ">📋</div>
+          <h1 style="
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+          ">AdiDo</h1>
+          <p style="
+            font-size: 16px;
+            color: #64748b;
+            margin-bottom: 32px;
+            font-weight: 400;
+          ">Your intelligent task & grocery companion</p>
+          
+          <div style="margin-bottom: 16px;">
         
-        <input type="password" id="passwordInput" placeholder="Password" style="
-          width: 300px;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          margin-bottom: 15px;
-          background-color: white;
-        ">
+            <input type="email" id="emailInput" placeholder="Email address" style="
+              width: 100%;
+              height: 56px;
+              border: 2px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 0 20px;
+              margin-bottom: 16px;
+              background-color: #f8fafc;
+              font-size: 16px;
+              transition: all 0.2s;
+              box-sizing: border-box;
+              outline: none;
+            ">
+            
+            <input type="password" id="passwordInput" placeholder="Password" style="
+              width: 100%;
+              height: 56px;
+              border: 2px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 0 20px;
+              margin-bottom: 24px;
+              background-color: #f8fafc;
+              font-size: 16px;
+              transition: all 0.2s;
+              box-sizing: border-box;
+              outline: none;
+            ">
         
-        <button id="authButton" style="
-          width: 330px;
-          height: 50px;
-          background-color: #007AFF;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 18px;
-          font-weight: bold;
-          margin-top: 10px;
-          cursor: pointer;
-        ">Sign In</button>
+            <button id="authButton" style="
+              width: 100%;
+              height: 56px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 16px;
+              cursor: pointer;
+              transition: all 0.2s;
+              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            ">Sign In</button>
+            
+            <button id="switchModeButton" style="
+              background: none;
+              border: none;
+              color: #667eea;
+              font-size: 14px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.2s;
+            ">Don't have an account? Sign Up</button>
+          </div>
         
-        <button id="switchModeButton" style="
-          background: none;
-          border: none;
-          color: #007AFF;
-          font-size: 16px;
-          margin-top: 20px;
-          cursor: pointer;
-        ">Don't have an account? Sign Up</button>
-        
-        <div id="authError" style="
-          color: #FF3B30;
-          margin-top: 15px;
-          display: none;
-        "></div>
+          <div id="authError" style="
+            color: #ef4444;
+            font-size: 14px;
+            margin-top: 12px;
+            display: none;
+            font-weight: 500;
+          "></div>
+        </div>
       </div>
 
       <!-- Main Screen -->
-      <div id="mainScreen" style="display: none;">
+      <div id="mainScreen" style="
+        display: none;
+        min-height: 100vh;
+        background: #f8fafc;
+      ">
         <div id="navigation" style="
           display: flex;
-          background-color: white;
-          border-bottom: 1px solid #ddd;
-          padding: 0;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          padding: 8px;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          gap: 4px;
         ">
           <button class="nav-tab active" data-tab="todos" style="
             flex: 1;
-            padding: 15px;
+            padding: 12px 20px;
             border: none;
-            background: white;
-            color: #007AFF;
-            font-size: 16px;
-            border-bottom: 2px solid #007AFF;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 12px;
             cursor: pointer;
-          ">Todo</button>
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+          ">📝 Todo</button>
           <button class="nav-tab" data-tab="grocery" style="
             flex: 1;
-            padding: 15px;
+            padding: 12px 20px;
             border: none;
-            background: white;
-            color: #666;
-            font-size: 16px;
-            border-bottom: 2px solid transparent;
+            background: rgba(100, 116, 139, 0.1);
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 12px;
             cursor: pointer;
-          ">Grocery</button>
+            transition: all 0.2s;
+          ">🛒 Grocery</button>
           <button class="nav-tab" data-tab="events" style="
             flex: 1;
-            padding: 15px;
+            padding: 12px 20px;
             border: none;
-            background: white;
-            color: #666;
-            font-size: 16px;
-            border-bottom: 2px solid transparent;
+            background: rgba(100, 116, 139, 0.1);
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 12px;
             cursor: pointer;
-          ">Events</button>
+            transition: all 0.2s;
+          ">📅 Events</button>
           <button class="nav-tab" data-tab="profile" style="
             flex: 1;
-            padding: 15px;
+            padding: 12px 20px;
             border: none;
-            background: white;
-            color: #666;
-            font-size: 16px;
-            border-bottom: 2px solid transparent;
+            background: rgba(100, 116, 139, 0.1);
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 12px;
             cursor: pointer;
-          ">Profile</button>
+            transition: all 0.2s;
+          ">👤 Profile</button>
         </div>
         
-        <div id="content" style="padding: 20px;">
+        <div id="content" style="
+          padding: 24px;
+          max-width: 800px;
+          margin: 0 auto;
+        ">
           <!-- Content will be loaded here -->
         </div>
       </div>
