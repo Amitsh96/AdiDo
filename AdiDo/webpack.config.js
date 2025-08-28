@@ -6,14 +6,18 @@ const webpack = require('webpack');
 process.env.PLATFORM = 'web';
 process.env.BUNDLER = 'webpack';
 
-module.exports = {
-  mode: 'development',
-  entry: './index.web.js',
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'bundle.js',
-    publicPath: '/',
-  },
+module.exports = (env, argv) => {
+  const isProduction = argv.mode === 'production';
+  
+  return {
+    mode: isProduction ? 'production' : 'development',
+    entry: './index.web.js',
+    output: {
+      path: path.resolve(__dirname, 'dist'),
+      filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
+      publicPath: '/',
+      clean: true,
+    },
   module: {
     rules: [
       {
@@ -54,4 +58,5 @@ module.exports = {
       directory: path.join(__dirname, 'dist'),
     },
   }
+  };
 };
