@@ -343,30 +343,79 @@ function loadTabContent(tab) {
   
   if (tab === 'todos') {
     content.innerHTML = `
-      <h2 style="color: #333; margin-bottom: 20px;">Todo List</h2>
-      <div style="display: flex; margin-bottom: 20px;">
-        <input type="text" id="todoInput" placeholder="Add a new todo..." style="
-          flex: 1;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          background-color: white;
-          margin-right: 10px;
+      <div style="
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
+      ">
+        <div style="
+          display: flex;
+          align-items: center;
+          margin-bottom: 24px;
         ">
-        <button id="addTodoBtn" style="
-          width: 50px;
-          height: 50px;
-          background-color: #007AFF;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 24px;
-          font-weight: bold;
-          cursor: pointer;
-        ">+</button>
+          <div style="
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+          ">
+            <span style="font-size: 20px;">📝</span>
+          </div>
+          <h2 style="
+            color: #1a202c;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+          ">Todo Tasks</h2>
+        </div>
+        
+        <div style="
+          display: flex;
+          gap: 12px;
+          margin-bottom: 24px;
+        ">
+          <input type="text" id="todoInput" placeholder="What needs to be done?" style="
+            flex: 1;
+            height: 56px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
+            box-sizing: border-box;
+          ">
+          <button id="addTodoBtn" style="
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">+</button>
+        </div>
       </div>
-      <div id="todosList"></div>
+      <div id="todosList" style="
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      "></div>
     `;
     
     document.getElementById('addTodoBtn').addEventListener('click', addTodo);
@@ -378,76 +427,134 @@ function loadTabContent(tab) {
     
   } else if (tab === 'grocery') {
     content.innerHTML = `
-      <h2 style="color: #333; margin-bottom: 20px;">Grocery List</h2>
-      <div style="display: flex; margin-bottom: 20px;">
-        <input type="text" id="groceryInput" placeholder="Add grocery item..." style="
-          flex: 1;
-          height: 50px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 0 15px;
-          background-color: white;
-          margin-right: 10px;
-        ">
+      <div style="
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
+      ">
         <div style="
           display: flex;
           align-items: center;
-          background-color: white;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          height: 50px;
-          margin-right: 10px;
+          margin-bottom: 24px;
         ">
-          <button id="quantityDownBtn" style="
-            width: 30px;
+          <div style="
+            width: 48px;
             height: 48px;
-            border: none;
-            background: none;
-            color: #666;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-          ">−</button>
-          <input type="text" id="quantityInput" placeholder="1" value="1" style="
-            width: 40px;
-            height: 48px;
-            border: none;
-            background: none;
-            padding: 0;
-            text-align: center;
-            font-size: 16px;
-            outline: none;
+            margin-right: 16px;
           ">
-          <button id="quantityUpBtn" style="
-            width: 30px;
-            height: 48px;
+            <span style="font-size: 20px;">🛒</span>
+          </div>
+          <h2 style="
+            color: #1a202c;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+          ">Shopping List</h2>
+        </div>
+        
+        <div style="
+          display: flex;
+          gap: 12px;
+          margin-bottom: 24px;
+          align-items: center;
+        ">
+          <input type="text" id="groceryInput" placeholder="What do you need to buy?" style="
+            flex: 1;
+            height: 56px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
+            box-sizing: border-box;
+          ">
+          
+          <div style="
+            display: flex;
+            align-items: center;
+            background-color: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            height: 56px;
+            padding: 0 4px;
+          ">
+            <button id="quantityDownBtn" style="
+              width: 40px;
+              height: 48px;
+              border: none;
+              background: none;
+              color: #64748b;
+              font-size: 18px;
+              font-weight: bold;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border-radius: 8px;
+              transition: all 0.2s;
+            ">−</button>
+            <input type="text" id="quantityInput" placeholder="1" value="1" style="
+              width: 48px;
+              height: 48px;
+              border: none;
+              background: none;
+              padding: 0;
+              text-align: center;
+              font-size: 16px;
+              font-weight: 600;
+              outline: none;
+              color: #1a202c;
+            ">
+            <button id="quantityUpBtn" style="
+              width: 40px;
+              height: 48px;
+              border: none;
+              background: none;
+              color: #64748b;
+              font-size: 18px;
+              font-weight: bold;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border-radius: 8px;
+              transition: all 0.2s;
+            ">+</button>
+          </div>
+          
+          <button id="addGroceryBtn" style="
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            color: white;
             border: none;
-            background: none;
-            color: #666;
+            border-radius: 12px;
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
           ">+</button>
         </div>
-        <button id="addGroceryBtn" style="
-          width: 50px;
-          height: 50px;
-          background-color: #34C759;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 24px;
-          font-weight: bold;
-          cursor: pointer;
-        ">+</button>
       </div>
-      <div id="groceriesList"></div>
+      <div id="groceriesList" style="
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      "></div>
     `;
     
     document.getElementById('addGroceryBtn').addEventListener('click', addGrocery);
