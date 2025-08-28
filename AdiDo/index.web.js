@@ -191,7 +191,7 @@ function createApp() {
       <div id="mainScreen" style="
         display: none;
         min-height: 100vh;
-        background: #f8fafc;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       ">
         <div id="navigation" style="
           display: flex;
