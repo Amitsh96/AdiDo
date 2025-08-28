@@ -321,16 +321,52 @@ function loadTabContent(tab) {
           background-color: white;
           margin-right: 10px;
         ">
-        <input type="text" id="quantityInput" placeholder="Qty" value="1" style="
-          width: 60px;
-          height: 50px;
+        <div style="
+          display: flex;
+          align-items: center;
+          background-color: white;
           border: 1px solid #ddd;
           border-radius: 8px;
-          padding: 0 10px;
-          background-color: white;
+          height: 50px;
           margin-right: 10px;
-          text-align: center;
         ">
+          <button id="quantityDownBtn" style="
+            width: 30px;
+            height: 48px;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">−</button>
+          <input type="text" id="quantityInput" placeholder="1" value="1" style="
+            width: 40px;
+            height: 48px;
+            border: none;
+            background: none;
+            padding: 0;
+            text-align: center;
+            font-size: 16px;
+            outline: none;
+          ">
+          <button id="quantityUpBtn" style="
+            width: 30px;
+            height: 48px;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">+</button>
+        </div>
         <button id="addGroceryBtn" style="
           width: 50px;
           height: 50px;
@@ -349,6 +385,30 @@ function loadTabContent(tab) {
     document.getElementById('addGroceryBtn').addEventListener('click', addGrocery);
     document.getElementById('groceryInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') addGrocery();
+    });
+    
+    // Quantity control event listeners
+    document.getElementById('quantityUpBtn').addEventListener('click', () => {
+      const quantityInput = document.getElementById('quantityInput');
+      let currentValue = parseInt(quantityInput.value) || 1;
+      quantityInput.value = currentValue + 1;
+    });
+    
+    document.getElementById('quantityDownBtn').addEventListener('click', () => {
+      const quantityInput = document.getElementById('quantityInput');
+      let currentValue = parseInt(quantityInput.value) || 1;
+      if (currentValue > 1) {
+        quantityInput.value = currentValue - 1;
+      }
+    });
+    
+    // Ensure only numbers in quantity input
+    document.getElementById('quantityInput').addEventListener('input', (e) => {
+      let value = e.target.value.replace(/[^0-9]/g, '');
+      if (value === '' || parseInt(value) < 1) {
+        value = '1';
+      }
+      e.target.value = value;
     });
     
     renderGroceries();
