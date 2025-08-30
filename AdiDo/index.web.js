@@ -1,7 +1,7 @@
 // Import Firebase directly
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
 
 console.log('Loading AdiDo...');
 
@@ -25,6 +25,12 @@ let currentUser = null;
 let todos = [];
 let groceries = [];
 let events = [];
+let tags = [];
+let isDarkMode = false;
+let filterCategory = 'all';
+let showAddTodoModal = false;
+let showTagModal = false;
+let editingTodo = null; // Todo currently being edited
 
 // Create the main app HTML
 function createApp() {
@@ -195,9 +201,9 @@ function createApp() {
       ">
         <div id="navigation" style="
           display: flex;
-          background: rgba(255, 255, 255, 0.95);
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
           backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          border-bottom: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.8)' : 'rgba(226, 232, 240, 0.8)'};
           padding: 8px;
           position: sticky;
           top: 0;
@@ -221,8 +227,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.15);
-            color: #1a202c;
+            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -233,8 +239,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.15);
-            color: #1a202c;
+            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -245,8 +251,8 @@ function createApp() {
             flex: 1;
             padding: 12px 20px;
             border: none;
-            background: rgba(255, 255, 255, 0.15);
-            color: #1a202c;
+            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
@@ -267,6 +273,30 @@ function createApp() {
   `;
 
   setupEventListeners();
+}
+
+// Setup navigation event listeners
+function setupNavigationListeners() {
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      const tabId = e.target.dataset.tab;
+      
+      // Update active states
+      document.querySelectorAll('.nav-tab').forEach(t => {
+        t.classList.remove('active');
+        t.style.background = isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)';
+        t.style.color = isDarkMode ? '#e2e8f0' : '#1a202c';
+        t.style.boxShadow = 'none';
+      });
+      
+      e.target.classList.add('active');
+      e.target.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
+      e.target.style.color = 'white';
+      e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+      
+      loadTabContent(tabId);
+    });
+  });
 }
 
 // Event listeners
@@ -358,6 +388,12 @@ function setupEventListeners() {
   });
 }
 
+function getAllCategories() {
+  const defaultCategories = ['all', 'personal', 'work', 'urgent'];
+  const customTagNames = tags.map(tag => tag.name);
+  return [...defaultCategories, ...customTagNames];
+}
+
 function showError(message, isError = true) {
   const errorDiv = document.getElementById('authError');
   errorDiv.textContent = message;
@@ -368,6 +404,7 @@ function showError(message, isError = true) {
 function showMainScreen() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'block';
+  setupNavigationListeners();
   loadTabContent('todos');
 }
 
@@ -380,97 +417,435 @@ function loadTabContent(tab) {
   const content = document.getElementById('content');
   
   if (tab === 'todos') {
+    const bgColor = isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+    const textColor = isDarkMode ? '#ffffff' : '#1a202c';
+    const secondaryTextColor = isDarkMode ? '#b3b3b3' : '#64748b';
+    
     content.innerHTML = `
       <div style="
-        background: rgba(255, 255, 255, 0.95);
+        background: ${bgColor};
         backdrop-filter: blur(20px);
         border-radius: 20px;
         padding: 32px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         margin-bottom: 24px;
+        transition: all 0.3s ease;
       ">
         <div style="
           display: flex;
           align-items: center;
+          justify-content: space-between;
           margin-bottom: 24px;
         ">
-          <div style="
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 16px;
-          ">
-            <span style="font-size: 20px;">📝</span>
+          <div style="display: flex; align-items: center;">
+            <div style="
+              width: 48px;
+              height: 48px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border-radius: 12px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-right: 16px;
+            ">
+              <span style="font-size: 20px;">🎯</span>
+            </div>
+            <div>
+              <h2 style="
+                color: ${textColor};
+                margin: 0;
+                font-size: 24px;
+                font-weight: 700;
+              ">To-do list</h2>
+              <p style="
+                color: ${secondaryTextColor};
+                margin: 4px 0 0 0;
+                font-size: 14px;
+              ">${todos.filter(t => !t.completed).length} remaining tasks</p>
+            </div>
           </div>
-          <h2 style="
-            color: #1a202c;
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-          ">Todo Tasks</h2>
+          
         </div>
-        
+
+        <!-- Category Filter Buttons -->
         <div style="
           display: flex;
-          gap: 12px;
+          gap: 8px;
           margin-bottom: 24px;
+          flex-wrap: wrap;
+          align-items: center;
         ">
-          <input type="text" id="todoInput" placeholder="What needs to be done?" style="
-            flex: 1;
-            height: 56px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 0 20px;
-            background-color: #f8fafc;
-            font-size: 16px;
-            transition: all 0.2s;
-            outline: none;
-            box-sizing: border-box;
-          ">
-          <button id="addTodoBtn" style="
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+          ${getAllCategories().map(category => `
+            <button class="category-filter" data-category="${category}" style="
+              padding: 8px 16px;
+              border: none;
+              border-radius: 20px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              text-transform: capitalize;
+              background: ${filterCategory === category ? '#667eea' : (isDarkMode ? '#404040' : '#f1f5f9')};
+              color: ${filterCategory === category ? 'white' : textColor};
+            ">${category}</button>
+          `).join('')}
+          <button id="manageTagsBtn" style="
+            padding: 8px 16px;
             border: none;
-            border-radius: 12px;
-            font-size: 20px;
-            font-weight: bold;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          ">+</button>
+            background: #667eea;
+            color: white;
+          ">+ Tags</button>
         </div>
+        
+        <button id="addTodoBtn" style="
+          width: 100%;
+          height: 56px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 24px;
+        ">✨ Add New Todo</button>
       </div>
+      
       <div id="todosList" style="
         display: flex;
         flex-direction: column;
         gap: 12px;
       "></div>
+
+      <!-- Add Todo Modal -->
+      <div id="addTodoModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${bgColor};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <h3 style="
+            color: ${textColor};
+            margin: 0 0 24px 0;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+          ">Add New Todo</h3>
+          
+          <textarea id="todoTextInput" placeholder="Enter todo text..." style="
+            width: 100%;
+            min-height: 80px;
+            border: 2px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+            border-radius: 12px;
+            padding: 16px;
+            background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
+            color: ${textColor};
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+          "></textarea>
+
+          <div style="margin-bottom: 20px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Category:</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              ${getAllCategories().filter(cat => cat !== 'all').map(category => `
+                <button class="modal-category-btn" data-category="${category}" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">${category}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Priority:</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="modal-priority-btn" data-priority="low" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">Low</button>
+                <button class="modal-priority-btn" data-priority="medium" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">Medium</button>
+                <button class="modal-priority-btn" data-priority="high" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">High</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Due Date (optional):</label>
+            <input type="date" id="todoDueDateInput" style="
+              width: 100%;
+              height: 48px;
+              border: 2px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+              border-radius: 12px;
+              padding: 0 16px;
+              background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
+              color: ${textColor};
+              font-size: 16px;
+              outline: none;
+              box-sizing: border-box;
+            ">
+          </div>
+
+          <div style="
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+          ">
+            <button id="cancelTodoBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+              color: ${textColor};
+            ">Cancel</button>
+            <button id="saveTodoBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            ">Add Todo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tag Management Modal -->
+      <div id="tagManagementModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${bgColor};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <h3 style="
+            color: ${textColor};
+            margin: 0 0 24px 0;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+          ">Manage Tags</h3>
+          
+          <!-- Existing Tags -->
+          <div style="margin-bottom: 24px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 12px;
+            ">Existing Tags:</label>
+            <div id="existingTagsList" style="
+              max-height: 120px;
+              overflow-y: auto;
+              margin-bottom: 16px;
+            "></div>
+          </div>
+
+          <!-- Add New Tag -->
+          <div style="margin-bottom: 24px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Add New Tag:</label>
+            <input type="text" id="newTagNameInput" placeholder="Enter tag name..." style="
+              width: 100%;
+              height: 48px;
+              border: 2px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+              border-radius: 12px;
+              padding: 0 16px;
+              background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
+              color: ${textColor};
+              font-size: 16px;
+              outline: none;
+              box-sizing: border-box;
+              margin-bottom: 16px;
+            ">
+            
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Color:</label>
+            <div id="colorOptions" style="
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+              margin-bottom: 16px;
+            ">
+              ${['#667eea', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#2196f3', '#00bcd4', '#ff5722'].map((color, index) => `
+                <button class="color-option" data-color="${color}" style="
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 16px;
+                  border: 2px solid ${index === 0 ? '#333' : 'transparent'};
+                  background-color: ${color};
+                  cursor: pointer;
+                  transition: all 0.2s;
+                "></button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+          ">
+            <button id="closeTagModalBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+              color: ${textColor};
+            ">Close</button>
+            <button id="addNewTagBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            ">Add Tag</button>
+          </div>
+        </div>
+      </div>
     `;
     
-    document.getElementById('addTodoBtn').addEventListener('click', addTodo);
-    document.getElementById('todoInput').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') addTodo();
-    });
-    
+    // Setup enhanced todo event listeners
+    setupTodoEventListeners();
     renderTodos();
     
   } else if (tab === 'grocery') {
     content.innerHTML = `
       <div style="
-        background: rgba(255, 255, 255, 0.95);
+        background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
         backdrop-filter: blur(20px);
         border-radius: 20px;
         padding: 32px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
         margin-bottom: 24px;
       ">
         <div style="
@@ -491,7 +866,7 @@ function loadTabContent(tab) {
             <span style="font-size: 20px;">🛒</span>
           </div>
           <h2 style="
-            color: #1a202c;
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             margin: 0;
             font-size: 24px;
             font-weight: 700;
@@ -504,10 +879,11 @@ function loadTabContent(tab) {
           <input type="text" id="groceryInput" placeholder="What do you need to buy?" style="
             width: 100%;
             height: 56px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
             border-radius: 12px;
             padding: 0 20px;
-            background-color: #f8fafc;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 16px;
             transition: all 0.2s;
             outline: none;
@@ -524,8 +900,8 @@ function loadTabContent(tab) {
             <div style="
               display: flex;
               align-items: center;
-              background-color: #f8fafc;
-              border: 2px solid #e2e8f0;
+              background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+              border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
               border-radius: 12px;
               height: 56px;
               padding: 0 4px;
@@ -538,7 +914,7 @@ function loadTabContent(tab) {
                 height: 48px;
                 border: none;
                 background: none;
-                color: #64748b;
+                color: ${isDarkMode ? '#94a3b8' : '#64748b'};
                 font-size: 18px;
                 font-weight: bold;
                 cursor: pointer;
@@ -558,7 +934,7 @@ function loadTabContent(tab) {
                 font-size: 16px;
                 font-weight: 600;
                 outline: none;
-                color: #1a202c;
+                color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
                 min-width: 0;
               ">
               <button id="quantityUpBtn" style="
@@ -566,7 +942,7 @@ function loadTabContent(tab) {
                 height: 48px;
                 border: none;
                 background: none;
-                color: #64748b;
+                color: ${isDarkMode ? '#94a3b8' : '#64748b'};
                 font-size: 18px;
                 font-weight: bold;
                 cursor: pointer;
@@ -639,11 +1015,11 @@ function loadTabContent(tab) {
   } else if (tab === 'events') {
     content.innerHTML = `
       <div style="
-        background: rgba(255, 255, 255, 0.95);
+        background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
         backdrop-filter: blur(20px);
         border-radius: 20px;
         padding: 32px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
         margin-bottom: 24px;
       ">
         <div style="
@@ -664,7 +1040,7 @@ function loadTabContent(tab) {
             <span style="font-size: 20px;">📅</span>
           </div>
           <h2 style="
-            color: #1a202c;
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             margin: 0;
             font-size: 24px;
             font-weight: 700;
@@ -677,10 +1053,11 @@ function loadTabContent(tab) {
         <input type="text" id="eventNameInput" placeholder="Event name..." style="
           width: 100%;
           height: 56px;
-          border: 2px solid #e2e8f0;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
           border-radius: 12px;
           padding: 0 20px;
-          background-color: #f8fafc;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
           font-size: 16px;
           transition: all 0.2s;
           outline: none;
@@ -691,10 +1068,11 @@ function loadTabContent(tab) {
         <textarea id="eventDescriptionInput" placeholder="Event description..." style="
           width: 100%;
           height: 80px;
-          border: 2px solid #e2e8f0;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
           border-radius: 12px;
           padding: 16px 20px;
-          background-color: #f8fafc;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
           font-size: 16px;
           transition: all 0.2s;
           outline: none;
@@ -707,10 +1085,11 @@ function loadTabContent(tab) {
         <input type="text" id="eventLocationInput" placeholder="Location..." style="
           width: 100%;
           height: 56px;
-          border: 2px solid #e2e8f0;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
           border-radius: 12px;
           padding: 0 20px;
-          background-color: #f8fafc;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
           font-size: 16px;
           transition: all 0.2s;
           outline: none;
@@ -722,10 +1101,11 @@ function loadTabContent(tab) {
           <input type="date" id="eventDateInput" style="
             flex: 1;
             height: 56px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
             border-radius: 12px;
             padding: 0 20px;
-            background-color: #f8fafc;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 16px;
             transition: all 0.2s;
             outline: none;
@@ -734,10 +1114,11 @@ function loadTabContent(tab) {
           <input type="time" id="eventTimeInput" style="
             flex: 1;
             height: 56px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
             border-radius: 12px;
             padding: 0 20px;
-            background-color: #f8fafc;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             font-size: 16px;
             transition: all 0.2s;
             outline: none;
@@ -780,11 +1161,11 @@ function loadTabContent(tab) {
   } else if (tab === 'profile') {
     content.innerHTML = `
       <div style="
-        background: rgba(255, 255, 255, 0.95);
+        background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
         backdrop-filter: blur(20px);
         border-radius: 20px;
         padding: 32px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
         margin-bottom: 24px;
       ">
         <div style="
@@ -805,7 +1186,7 @@ function loadTabContent(tab) {
             <span style="font-size: 20px;">👤</span>
           </div>
           <h2 style="
-            color: #1a202c;
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             margin: 0;
             font-size: 24px;
             font-weight: 700;
@@ -817,16 +1198,54 @@ function loadTabContent(tab) {
           margin-bottom: 24px;
         ">
           <h3 style="
-            color: #1a202c;
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
             margin-bottom: 8px;
             font-size: 20px;
             font-weight: 600;
           ">Welcome, ${currentUser?.email || 'User'}!</h3>
           <p style="
-            color: #64748b;
+            color: ${isDarkMode ? '#94a3b8' : '#64748b'};
             margin: 0;
             font-size: 16px;
           ">Shared with your partner</p>
+        </div>
+        
+        <!-- Dark Mode Toggle -->
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          padding: 20px;
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
+          border-radius: 16px;
+          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+        ">
+          <div>
+            <h4 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0 0 4px 0;
+              font-size: 16px;
+              font-weight: 600;
+            ">Dark Mode</h4>
+            <p style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              margin: 0;
+              font-size: 14px;
+            ">Switch between light and dark themes</p>
+          </div>
+          <button id="themeToggle" style="
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+          ">${isDarkMode ? '☀️' : '🌙'}</button>
         </div>
       
         <button id="logoutBtn" style="
@@ -855,27 +1274,292 @@ function loadTabContent(tab) {
         console.error('Logout error:', error);
       }
     });
+    
+    // Setup theme toggle event listener
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      isDarkMode = !isDarkMode;
+      localStorage.setItem('darkMode', isDarkMode);
+      loadTabContent('profile'); // Refresh profile to show new theme
+    });
   }
 }
 
 async function addTodo() {
-  const input = document.getElementById('todoInput');
-  const text = input.value.trim();
+  document.getElementById('addTodoModal').style.display = 'flex';
+  
+  // Set up modal event listeners each time the modal opens
+  setupModalEventListeners();
+}
+
+function setupModalEventListeners() {
+  // Modal save button
+  const saveTodoBtn = document.getElementById('saveTodoBtn');
+  if (saveTodoBtn) {
+    saveTodoBtn.replaceWith(saveTodoBtn.cloneNode(true)); // Remove old listeners
+    document.getElementById('saveTodoBtn').addEventListener('click', saveTodo);
+  }
+  
+  // Modal cancel button  
+  const cancelTodoBtn = document.getElementById('cancelTodoBtn');
+  if (cancelTodoBtn) {
+    cancelTodoBtn.replaceWith(cancelTodoBtn.cloneNode(true)); // Remove old listeners
+    document.getElementById('cancelTodoBtn').addEventListener('click', () => {
+      document.getElementById('addTodoModal').style.display = 'none';
+    });
+  }
+  
+  // Modal category buttons
+  document.querySelectorAll('.modal-category-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent modal from closing
+      document.querySelectorAll('.modal-category-btn').forEach(b => {
+        b.classList.remove('selected');
+        b.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+        b.style.color = isDarkMode ? '#ffffff' : '#1a202c';
+      });
+      
+      e.target.classList.add('selected');
+      const colors = {
+        personal: '#4caf50',
+        work: '#2196f3',
+        urgent: '#ff5722'
+      };
+      e.target.style.background = colors[e.target.dataset.category] || '#667eea';
+      e.target.style.color = 'white';
+    });
+  });
+  
+  // Modal priority buttons
+  document.querySelectorAll('.modal-priority-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent modal from closing
+      document.querySelectorAll('.modal-priority-btn').forEach(b => {
+        b.classList.remove('selected');
+        b.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+        b.style.color = isDarkMode ? '#ffffff' : '#1a202c';
+      });
+      
+      e.target.classList.add('selected');
+      const colors = {
+        low: '#4caf50',
+        medium: '#ff9800', 
+        high: '#f44336'
+      };
+      e.target.style.background = colors[e.target.dataset.priority] || '#667eea';
+      e.target.style.color = 'white';
+    });
+  });
+}
+
+async function saveTodo() {
+  const textInput = document.getElementById('todoTextInput');
+  const dueDateInput = document.getElementById('todoDueDateInput');
+  const text = textInput.value.trim();
+  const dueDate = dueDateInput.value;
+  
+  // Get selected category and priority
+  const selectedCategoryBtn = document.querySelector('.modal-category-btn.selected');
+  const selectedPriorityBtn = document.querySelector('.modal-priority-btn.selected');
+  
+  const category = selectedCategoryBtn ? selectedCategoryBtn.dataset.category : 'personal';
+  const priority = selectedPriorityBtn ? selectedPriorityBtn.dataset.priority : 'medium';
   
   if (text && currentUser) {
     try {
-      await addDoc(collection(db, 'todos'), {
+      const todoData = {
         text: text,
         completed: false,
         userId: currentUser.uid,
+        category: category,
+        priority: priority,
         createdAt: serverTimestamp()
+      };
+      
+      if (dueDate) {
+        todoData.dueDate = new Date(dueDate);
+      }
+      
+      await addDoc(collection(db, 'todos'), todoData);
+      
+      // Reset form and close modal
+      textInput.value = '';
+      dueDateInput.value = '';
+      document.querySelectorAll('.modal-category-btn, .modal-priority-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+        btn.style.color = isDarkMode ? '#ffffff' : '#1a202c';
       });
-      input.value = '';
+      
+      document.getElementById('addTodoModal').style.display = 'none';
     } catch (error) {
       console.error('Error adding todo:', error);
     }
   }
 }
+
+function setupTodoEventListeners() {
+  // Add todo button
+  const addTodoBtn = document.getElementById('addTodoBtn');
+  if (addTodoBtn) {
+    addTodoBtn.addEventListener('click', addTodo);
+  }
+  
+  // Manage tags button
+  const manageTagsBtn = document.getElementById('manageTagsBtn');
+  if (manageTagsBtn) {
+    manageTagsBtn.addEventListener('click', openTagModal);
+  }
+  
+  // Category filters
+  document.querySelectorAll('.category-filter').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      filterCategory = e.target.dataset.category;
+      loadTabContent('todos'); // Refresh to update active state
+    });
+  });
+  
+  // Close modal when clicking outside
+  const modal = document.getElementById('addTodoModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'addTodoModal') {
+        document.getElementById('addTodoModal').style.display = 'none';
+      }
+    });
+  }
+  
+  // Close tag modal when clicking outside
+  const tagModal = document.getElementById('tagManagementModal');
+  if (tagModal) {
+    tagModal.addEventListener('click', (e) => {
+      if (e.target.id === 'tagManagementModal') {
+        document.getElementById('tagManagementModal').style.display = 'none';
+      }
+    });
+  }
+}
+
+function openTagModal() {
+  document.getElementById('tagManagementModal').style.display = 'flex';
+  renderExistingTags();
+  setupTagModalListeners();
+}
+
+function renderExistingTags() {
+  const existingTagsList = document.getElementById('existingTagsList');
+  if (!existingTagsList) return;
+  
+  if (tags.length === 0) {
+    existingTagsList.innerHTML = `
+      <div style="
+        text-align: center;
+        color: #999;
+        font-style: italic;
+        padding: 20px;
+        font-size: 14px;
+      ">No custom tags yet</div>
+    `;
+    return;
+  }
+  
+  existingTagsList.innerHTML = tags.map(tag => `
+    <div style="
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      background: ${isDarkMode ? '#404040' : '#f8f8f8'};
+      border-radius: 8px;
+      margin-bottom: 8px;
+    ">
+      <div style="
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background-color: ${tag.color};
+        margin-right: 12px;
+      "></div>
+      <span style="
+        flex: 1;
+        font-size: 16px;
+        color: ${isDarkMode ? '#ffffff' : '#333'};
+      ">${tag.name}</span>
+      <button onclick="deleteTag('${tag.id}')" style="
+        width: 24px;
+        height: 24px;
+        border: none;
+        background: none;
+        color: #f44336;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+      ">×</button>
+    </div>
+  `).join('');
+}
+
+function setupTagModalListeners() {
+  let selectedColor = '#667eea';
+  
+  // Color selection
+  document.querySelectorAll('.color-option').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      // Remove previous selection
+      document.querySelectorAll('.color-option').forEach(b => {
+        b.style.border = '2px solid transparent';
+      });
+      
+      // Select new color
+      e.target.style.border = '2px solid #333';
+      selectedColor = e.target.dataset.color;
+    });
+  });
+  
+  // Close modal button
+  const closeBtn = document.getElementById('closeTagModalBtn');
+  if (closeBtn) {
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+    document.getElementById('closeTagModalBtn').addEventListener('click', () => {
+      document.getElementById('tagManagementModal').style.display = 'none';
+    });
+  }
+  
+  // Add new tag button
+  const addTagBtn = document.getElementById('addNewTagBtn');
+  if (addTagBtn) {
+    addTagBtn.replaceWith(addTagBtn.cloneNode(true));
+    document.getElementById('addNewTagBtn').addEventListener('click', async () => {
+      const nameInput = document.getElementById('newTagNameInput');
+      const tagName = nameInput.value.trim();
+      
+      if (tagName && currentUser) {
+        try {
+          await addDoc(collection(db, 'tags'), {
+            name: tagName,
+            color: selectedColor,
+            userId: currentUser.uid,
+            createdAt: serverTimestamp()
+          });
+          
+          nameInput.value = '';
+          renderExistingTags();
+        } catch (error) {
+          console.error('Error adding tag:', error);
+        }
+      }
+    });
+  }
+}
+
+window.deleteTag = async (tagId) => {
+  if (confirm('Are you sure you want to delete this tag?')) {
+    try {
+      await deleteDoc(doc(db, 'tags', tagId));
+      renderExistingTags();
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+    }
+  }
+};
 
 async function addGrocery() {
   const textInput = document.getElementById('groceryInput');
@@ -940,48 +1624,182 @@ async function addEvent() {
 
 function renderTodos() {
   const todosList = document.getElementById('todosList');
-  if (!todosList) return;
+  if (!todosList) {
+    return;
+  }
   
-  todosList.innerHTML = todos.map(todo => `
-    <div style="
-      display: flex;
-      align-items: center;
-      background-color: white;
-      padding: 15px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-    ">
-      <button onclick="toggleTodo('${todo.id}')" style="
-        width: 24px;
-        height: 24px;
-        border-radius: 12px;
-        border: 2px solid #007AFF;
-        background-color: ${todo.completed ? '#007AFF' : 'white'};
-        color: white;
-        margin-right: 15px;
-        cursor: pointer;
-      ">${todo.completed ? '✓' : ''}</button>
+  // Filter todos based on selected category
+  let filteredTodos = todos;
+  if (filterCategory !== 'all') {
+    filteredTodos = todos.filter(todo => todo.category === filterCategory);
+  }
+  
+  // Sort todos by priority and due date
+  filteredTodos = filteredTodos.sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    const aPriority = priorityOrder[a.priority] || 2;
+    const bPriority = priorityOrder[b.priority] || 2;
+    
+    if (aPriority !== bPriority) {
+      return bPriority - aPriority; // High priority first
+    }
+    
+    if (a.dueDate && b.dueDate) {
+      return new Date(a.dueDate.seconds * 1000) - new Date(b.dueDate.seconds * 1000);
+    }
+    
+    return 0;
+  });
+  
+  const bgColor = isDarkMode ? 'rgba(40, 40, 40, 0.95)' : 'white';
+  const textColor = isDarkMode ? '#ffffff' : '#333333';
+  const secondaryTextColor = isDarkMode ? '#b3b3b3' : '#666666';
+  
+  todosList.innerHTML = filteredTodos.map(todo => {
+    const getCategoryColor = (category) => {
+      const defaultColors = {
+        personal: '#4caf50',
+        work: '#2196f3', 
+        urgent: '#ff5722'
+      };
       
-      <span style="
-        flex: 1;
-        font-size: 16px;
-        color: ${todo.completed ? '#999' : '#333'};
-        text-decoration: ${todo.completed ? 'line-through' : 'none'};
-      ">${todo.text}</span>
+      // Check if it's a default category
+      if (defaultColors[category]) {
+        return defaultColors[category];
+      }
       
-      <button onclick="deleteTodo('${todo.id}')" style="
-        width: 30px;
-        height: 30px;
-        border: none;
-        background: none;
-        color: #FF3B30;
-        font-size: 24px;
-        font-weight: bold;
-        cursor: pointer;
-      ">×</button>
-    </div>
-  `).join('');
+      // Check if it's a custom tag
+      const customTag = tags.find(tag => tag.name === category);
+      if (customTag) {
+        return customTag.color;
+      }
+      
+      return '#667eea';
+    };
+    
+    const priorityColors = {
+      low: '#4caf50',
+      medium: '#ff9800',
+      high: '#f44336'
+    };
+    
+    const categoryColor = getCategoryColor(todo.category);
+    const priorityColor = priorityColors[todo.priority] || '#ff9800';
+    
+    const formatDate = (date) => {
+      if (!date) return null;
+      const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
+      return d.toLocaleDateString();
+    };
+    
+    return `
+      <div style="
+        display: flex;
+        align-items: flex-start;
+        background: ${bgColor};
+        backdrop-filter: blur(20px);
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+        box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
+        transition: all 0.2s ease;
+        margin-bottom: 12px;
+      " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+        
+        <button onclick="toggleTodo('${todo.id}')" style="
+          width: 28px;
+          height: 28px;
+          border-radius: 14px;
+          border: 2px solid ${categoryColor};
+          background-color: ${todo.completed ? categoryColor : 'transparent'};
+          color: white;
+          margin-right: 16px;
+          margin-top: 2px;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          font-weight: bold;
+        ">${todo.completed ? '✓' : ''}</button>
+        
+        <div style="flex: 1; min-width: 0;">
+          <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+          ">
+            <div style="
+              font-size: 16px;
+              font-weight: 500;
+              color: ${textColor};
+              text-decoration: ${todo.completed ? 'line-through' : 'none'};
+              opacity: ${todo.completed ? '0.6' : '1'};
+              line-height: 1.4;
+              word-wrap: break-word;
+              flex: 1;
+              margin-right: 12px;
+            ">${todo.text}</div>
+            
+            <div style="
+              background: ${priorityColor};
+              color: white;
+              padding: 4px 8px;
+              border-radius: 12px;
+              font-size: 12px;
+              font-weight: 600;
+              text-transform: uppercase;
+              white-space: nowrap;
+            ">${todo.priority || 'medium'}</div>
+          </div>
+          
+          <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+          ">
+            <div style="
+              background: ${categoryColor};
+              color: white;
+              padding: 4px 12px;
+              border-radius: 16px;
+              font-size: 12px;
+              font-weight: 600;
+              text-transform: capitalize;
+            ">${todo.category || 'personal'}</div>
+            
+            ${todo.dueDate ? `
+              <div style="
+                font-size: 12px;
+                color: ${secondaryTextColor};
+                font-style: italic;
+              ">Due: ${formatDate(todo.dueDate)}</div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <button onclick="deleteTodo('${todo.id}')" style="
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: none;
+          color: ${isDarkMode ? '#ff6b6b' : '#FF3B30'};
+          font-size: 20px;
+          font-weight: bold;
+          cursor: pointer;
+          margin-left: 8px;
+          border-radius: 8px;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        " onmouseover="this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="this.style.background='none'">×</button>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderGroceries() {
@@ -1127,16 +1945,18 @@ window.toggleTodo = async (id) => {
         completed: !todo.completed
       });
     } catch (error) {
-      console.error('Error toggling todo:', error);
+      console.error('Error updating todo:', error);
     }
   }
 };
 
 window.deleteTodo = async (id) => {
-  try {
-    await deleteDoc(doc(db, 'todos', id));
-  } catch (error) {
-    console.error('Error deleting todo:', error);
+  if (confirm('Are you sure you want to delete this todo?')) {
+    try {
+      await deleteDoc(doc(db, 'todos', id));
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+    }
   }
 };
 
@@ -1148,30 +1968,40 @@ window.toggleGrocery = async (id) => {
         completed: !grocery.completed
       });
     } catch (error) {
-      console.error('Error toggling grocery:', error);
+      console.error('Error updating grocery:', error);
     }
   }
 };
 
 window.deleteGrocery = async (id) => {
-  try {
-    await deleteDoc(doc(db, 'groceries', id));
-  } catch (error) {
-    console.error('Error deleting grocery:', error);
+  if (confirm('Are you sure you want to delete this item?')) {
+    try {
+      await deleteDoc(doc(db, 'groceries', id));
+    } catch (error) {
+      console.error('Error deleting grocery:', error);
+    }
   }
 };
 
 window.deleteEvent = async (id) => {
-  try {
-    await deleteDoc(doc(db, 'events', id));
-  } catch (error) {
-    console.error('Error deleting event:', error);
+  if (confirm('Are you sure you want to delete this event?')) {
+    try {
+      await deleteDoc(doc(db, 'events', id));
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
   }
 };
 
-// Set up Firebase auth listener
+// Initialize theme from localStorage
+if (localStorage.getItem('isDarkMode')) {
+  isDarkMode = JSON.parse(localStorage.getItem('isDarkMode'));
+}
+
+// Auth state listener
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
+  
   if (user) {
     console.log('User signed in:', user.email);
     showMainScreen();
@@ -1201,20 +2031,35 @@ onAuthStateChanged(auth, (user) => {
     onSnapshot(eventsQuery, (snapshot) => {
       events = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        datetime: doc.data().datetime.toDate() // Convert Firestore Timestamp to Date
+        ...doc.data()
       }));
       renderEvents();
+    });
+    
+    // Set up real-time listeners for tags
+    const tagsQuery = query(collection(db, 'tags'), where('userId', '==', user.uid));
+    onSnapshot(tagsQuery, (snapshot) => {
+      tags = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Refresh todos view if it's active to update category filters
+      if (document.getElementById('todosList')) {
+        loadTabContent('todos');
+      }
     });
     
   } else {
     console.log('User signed out');
     showLoginScreen();
+    // Clear data when signed out
     todos = [];
     groceries = [];
     events = [];
+    tags = [];
   }
 });
 
 // Initialize the app
 createApp();
+

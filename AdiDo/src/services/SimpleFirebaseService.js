@@ -13,6 +13,7 @@ import { db } from './FirebaseConfig';
 const TODOS_COLLECTION = 'todos';
 const GROCERIES_COLLECTION = 'groceries';
 const EVENTS_COLLECTION = 'events';
+const TAGS_COLLECTION = 'tags';
 
 export const SimpleFirebaseService = {
   // Todos
@@ -22,6 +23,10 @@ export const SimpleFirebaseService = {
       const docRef = await addDoc(collection(db, TODOS_COLLECTION), {
         ...todo,
         userId,
+        dueDate: todo.dueDate || null,
+        category: todo.category || 'personal',
+        priority: todo.priority || 'medium',
+        order: todo.order || 0,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -160,6 +165,10 @@ export const SimpleFirebaseService = {
       const docRef = await addDoc(collection(db, EVENTS_COLLECTION), {
         ...event,
         userId,
+        dueDate: event.dueDate || null,
+        category: event.category || 'personal',
+        priority: event.priority || 'medium',
+        order: event.order || 0,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -219,6 +228,61 @@ export const SimpleFirebaseService = {
       callback(events);
     }, (error) => {
       console.error('Error in events subscription:', error);
+    });
+  },
+
+  // Tags
+  async addTag(tag, userId) {
+    try {
+      console.log('Adding tag:', tag, 'for user:', userId);
+      const docRef = await addDoc(collection(db, TAGS_COLLECTION), {
+        name: tag.name,
+        color: tag.color || '#667eea',
+        userId,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      console.log('Tag added with ID:', docRef.id);
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      throw error;
+    }
+  },
+
+  async deleteTag(tagId) {
+    try {
+      console.log('Deleting tag:', tagId);
+      const tagRef = doc(db, TAGS_COLLECTION, tagId);
+      await deleteDoc(tagRef);
+      console.log('Tag deleted successfully');
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      throw error;
+    }
+  },
+
+  subscribeTags(userId, callback) {
+    console.log('Subscribing to tags for user:', userId);
+    const tagsQuery = query(
+      collection(db, TAGS_COLLECTION),
+      orderBy('createdAt', 'desc')
+    );
+
+    return onSnapshot(tagsQuery, (snapshot) => {
+      console.log('Received tags update, doc count:', snapshot.docs.length);
+      const tags = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Tag doc:', doc.id, data);
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      // Return ALL tags instead of filtering by userId for sharing
+      callback(tags);
+    }, (error) => {
+      console.error('Error in tags subscription:', error);
     });
   }
 };
