@@ -1,0 +1,2 @@
+// Initialize the app
+createApp();

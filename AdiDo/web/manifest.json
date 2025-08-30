@@ -1,0 +1,16 @@
+{
+  "name": "AdiDo",
+  "short_name": "AdiDo",
+  "description": "Shared todo and grocery lists for you and your partner",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -15,10 +15,11 @@ module.exports = (env, argv) => {
     entry: './index.web.js',
     output: {
       path: path.resolve(__dirname, 'dist'),
-      filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
+      filename: isProduction ? 'bundle.[contenthash].[hash].js' : 'bundle.js',
       publicPath: './',
       clean: true,
     },
+    cache: false,
   module: {
     rules: [
       {
@@ -53,7 +54,8 @@ module.exports = (env, argv) => {
     }),
     new CopyWebpackPlugin({
       patterns: [
-        { from: 'web/favicon.svg', to: 'favicon.svg' }
+        { from: 'web/favicon.svg', to: 'favicon.svg' },
+        { from: 'web/manifest.json', to: 'manifest.json' }
       ]
     }),
     new webpack.ProvidePlugin({

@@ -1346,6 +1346,146 @@ function loadTabContent(tab) {
         flex-direction: column;
         gap: 12px;
       "></div>
+
+      <!-- Edit Event Modal -->
+      <div id="editEventModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <h3 style="
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            margin: 0 0 24px 0;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+          ">Edit Event</h3>
+          
+          <input type="text" id="editEventNameInput" placeholder="Event name..." style="
+            width: 100%;
+            height: 56px;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+          ">
+          
+          <textarea id="editEventDescriptionInput" placeholder="Event description..." style="
+            width: 100%;
+            height: 80px;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 12px;
+            padding: 16px 20px;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
+            resize: vertical;
+            font-family: inherit;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+          "></textarea>
+          
+          <input type="text" id="editEventLocationInput" placeholder="Location..." style="
+            width: 100%;
+            height: 56px;
+            border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 12px;
+            padding: 0 20px;
+            background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            font-size: 16px;
+            transition: all 0.2s;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+          ">
+          
+          <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
+            <input type="date" id="editEventDateInput" style="
+              flex: 1;
+              height: 56px;
+              border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+              border-radius: 12px;
+              padding: 0 20px;
+              background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              font-size: 16px;
+              transition: all 0.2s;
+              outline: none;
+              box-sizing: border-box;
+            ">
+            <input type="time" id="editEventTimeInput" style="
+              flex: 1;
+              height: 56px;
+              border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+              border-radius: 12px;
+              padding: 0 20px;
+              background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              font-size: 16px;
+              transition: all 0.2s;
+              outline: none;
+              box-sizing: border-box;
+            ">
+          </div>
+
+          <div style="
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+          ">
+            <button id="cancelEditEventBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            ">Cancel</button>
+            <button id="saveEditEventBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+              color: white;
+              box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+            ">Save Changes</button>
+          </div>
+        </div>
+      </div>
     `;
     
     document.getElementById('addEventBtn').addEventListener('click', addEvent);
@@ -1909,6 +2049,113 @@ window.editTodo = (todoId) => {
   }
 };
 
+// Event edit functionality
+let editingEventId = null;
+
+function openEditEventModal(event) {
+  editingEventId = event.id;
+  
+  // Populate form fields
+  document.getElementById('editEventNameInput').value = event.name || '';
+  document.getElementById('editEventDescriptionInput').value = event.description || '';
+  document.getElementById('editEventLocationInput').value = event.location || '';
+  
+  // Parse datetime for date and time inputs
+  if (event.datetime) {
+    const eventDate = new Date(event.datetime.seconds * 1000);
+    document.getElementById('editEventDateInput').value = eventDate.toISOString().split('T')[0];
+    document.getElementById('editEventTimeInput').value = eventDate.toTimeString().split(' ')[0].substring(0, 5);
+  } else {
+    document.getElementById('editEventDateInput').value = '';
+    document.getElementById('editEventTimeInput').value = '';
+  }
+  
+  document.getElementById('editEventModal').style.display = 'flex';
+  setupEditEventModalListeners();
+}
+
+function setupEditEventModalListeners() {
+  // Remove existing listeners to prevent duplicates
+  const modal = document.getElementById('editEventModal');
+  const newModal = modal.cloneNode(true);
+  modal.parentNode.replaceChild(newModal, modal);
+  
+  // Add close modal listeners
+  newModal.addEventListener('click', (e) => {
+    if (e.target === newModal) {
+      newModal.style.display = 'none';
+      editingEventId = null;
+    }
+  });
+  
+  // Cancel button listener
+  const cancelBtn = newModal.querySelector('#cancelEditEventBtn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      newModal.style.display = 'none';
+      editingEventId = null;
+    });
+  }
+  
+  // Save button listener
+  const saveBtn = newModal.querySelector('#saveEditEventBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveEditedEvent);
+  }
+}
+
+async function saveEditedEvent() {
+  if (!editingEventId) return;
+  
+  const name = document.getElementById('editEventNameInput').value.trim();
+  const description = document.getElementById('editEventDescriptionInput').value.trim();
+  const location = document.getElementById('editEventLocationInput').value.trim();
+  const date = document.getElementById('editEventDateInput').value;
+  const time = document.getElementById('editEventTimeInput').value;
+  
+  if (!name) {
+    alert('Please enter event name');
+    return;
+  }
+  
+  if (!date || !time) {
+    alert('Please select date and time');
+    return;
+  }
+  
+  try {
+    const datetime = new Date(`${date}T${time}`);
+    
+    await updateDoc(doc(db, 'events', editingEventId), {
+      name,
+      description,
+      location,
+      datetime: Timestamp.fromDate(datetime),
+      updatedAt: Timestamp.now()
+    });
+    
+    document.getElementById('editEventModal').style.display = 'none';
+    editingEventId = null;
+  } catch (error) {
+    console.error('Error updating event:', error);
+    alert('Failed to update event');
+  }
+}
+
+window.editEvent = (eventId) => {
+  const event = events.find(e => e.id === eventId);
+  if (event) {
+    openEditEventModal(event);
+  }
+};
+
+window.closeEditEventModal = () => {
+  document.getElementById('editEventModal').style.display = 'none';
+  editingEventId = null;
+};
+
+window.saveEditedEvent = saveEditedEvent;
+
 // Drag and drop functionality
 let draggedTodoId = null;
 
@@ -1922,10 +2169,49 @@ window.handleTodoDragOver = (event) => {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
   
-  // Visual feedback
   const draggedElement = event.currentTarget;
-  if (draggedElement.getAttribute('data-todo-id') !== draggedTodoId) {
-    draggedElement.style.borderTop = '2px solid #667eea';
+  const targetId = draggedElement.getAttribute('data-todo-id');
+  
+  if (targetId !== draggedTodoId) {
+    // Clear previous indicators
+    document.querySelectorAll('[data-todo-id]').forEach(item => {
+      item.style.borderTop = '';
+      item.style.borderBottom = '';
+      item.style.backgroundColor = '';
+      item.style.transform = '';
+    });
+    
+    // Get mouse position within the element
+    const rect = draggedElement.getBoundingClientRect();
+    const mouseY = event.clientY - rect.top;
+    const elementHeight = rect.height;
+    const isUpperHalf = mouseY < elementHeight / 2;
+    
+    // Show insertion line and lift effect
+    if (isUpperHalf) {
+      draggedElement.style.borderTop = '3px solid #667eea';
+      draggedElement.style.boxShadow = '0 -2px 8px rgba(102, 126, 234, 0.3)';
+    } else {
+      draggedElement.style.borderBottom = '3px solid #667eea';
+      draggedElement.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+    }
+    
+    // Highlight the drop zone
+    draggedElement.style.backgroundColor = isDarkMode ? 'rgba(102, 126, 234, 0.1)' : 'rgba(102, 126, 234, 0.05)';
+    draggedElement.style.transform = 'scale(1.02)';
+    draggedElement.style.transition = 'all 0.2s ease';
+  }
+};
+
+window.handleTodoDragLeave = (event) => {
+  const draggedElement = event.currentTarget;
+  // Only clear if we're actually leaving the element (not entering a child)
+  if (!draggedElement.contains(event.relatedTarget)) {
+    draggedElement.style.borderTop = '';
+    draggedElement.style.borderBottom = '';
+    draggedElement.style.backgroundColor = '';
+    draggedElement.style.transform = '';
+    draggedElement.style.boxShadow = '';
   }
 };
 
@@ -1937,6 +2223,10 @@ window.handleTodoDrop = async (event) => {
   
   // Remove visual feedback
   draggedElement.style.borderTop = '';
+  draggedElement.style.borderBottom = '';
+  draggedElement.style.backgroundColor = '';
+  draggedElement.style.transform = '';
+  draggedElement.style.boxShadow = '';
   
   if (targetTodoId && draggedTodoId && targetTodoId !== draggedTodoId) {
     await reorderTodos(draggedTodoId, targetTodoId);
@@ -1949,6 +2239,11 @@ window.handleTodoDragEnd = (event) => {
   // Remove visual feedback from all items
   document.querySelectorAll('[data-todo-id]').forEach(item => {
     item.style.borderTop = '';
+    item.style.borderBottom = '';
+    item.style.backgroundColor = '';
+    item.style.transform = '';
+    item.style.boxShadow = '';
+    item.style.transition = '';
   });
   
   draggedTodoId = null;
@@ -1963,30 +2258,40 @@ async function reorderTodos(draggedId, targetId) {
     
     if (draggedIndex === -1 || targetIndex === -1) return;
     
-    // Create new order values
-    const updates = [];
+    // Calculate proper order value based on drop position
+    let newOrder;
     
-    // If dragging down, insert after target
-    // If dragging up, insert before target
-    const insertAfter = draggedIndex < targetIndex;
-    
-    if (insertAfter) {
-      // Moving down: set order to be after target
-      const newOrder = (currentTodos[targetIndex].order || 0) + 0.5;
-      updates.push({ id: draggedId, order: newOrder });
+    if (draggedIndex < targetIndex) {
+      // Moving down: place after target
+      const nextIndex = targetIndex + 1;
+      if (nextIndex < currentTodos.length) {
+        // Insert between target and next item
+        const targetOrder = currentTodos[targetIndex].order || 0;
+        const nextOrder = currentTodos[nextIndex].order || 0;
+        newOrder = (targetOrder + nextOrder) / 2;
+      } else {
+        // Insert at the end
+        newOrder = (currentTodos[targetIndex].order || 0) + 1000;
+      }
     } else {
-      // Moving up: set order to be before target
-      const newOrder = (currentTodos[targetIndex].order || 0) - 0.5;
-      updates.push({ id: draggedId, order: newOrder });
+      // Moving up: place before target
+      const prevIndex = targetIndex - 1;
+      if (prevIndex >= 0) {
+        // Insert between previous and target item
+        const prevOrder = currentTodos[prevIndex].order || 0;
+        const targetOrder = currentTodos[targetIndex].order || 0;
+        newOrder = (prevOrder + targetOrder) / 2;
+      } else {
+        // Insert at the beginning
+        newOrder = (currentTodos[targetIndex].order || 0) - 1000;
+      }
     }
     
     // Update Firebase
-    for (const update of updates) {
-      await updateDoc(doc(db, 'todos', update.id), {
-        order: update.order,
-        updatedAt: serverTimestamp()
-      });
-    }
+    await updateDoc(doc(db, 'todos', draggedId), {
+      order: newOrder,
+      updatedAt: serverTimestamp()
+    });
     
   } catch (error) {
     console.error('Error reordering todos:', error);
@@ -2040,8 +2345,48 @@ window.handleGroceryDragOver = (event) => {
   event.dataTransfer.dropEffect = 'move';
   
   const draggedElement = event.currentTarget;
-  if (draggedElement.getAttribute('data-grocery-id') !== draggedGroceryId) {
-    draggedElement.style.borderTop = '2px solid #10b981';
+  const targetId = draggedElement.getAttribute('data-grocery-id');
+  
+  if (targetId !== draggedGroceryId) {
+    // Clear previous indicators
+    document.querySelectorAll('[data-grocery-id]').forEach(item => {
+      item.style.borderTop = '';
+      item.style.borderBottom = '';
+      item.style.backgroundColor = '';
+      item.style.transform = '';
+    });
+    
+    // Get mouse position within the element
+    const rect = draggedElement.getBoundingClientRect();
+    const mouseY = event.clientY - rect.top;
+    const elementHeight = rect.height;
+    const isUpperHalf = mouseY < elementHeight / 2;
+    
+    // Show insertion line and lift effect
+    if (isUpperHalf) {
+      draggedElement.style.borderTop = '3px solid #10b981';
+      draggedElement.style.boxShadow = '0 -2px 8px rgba(16, 185, 129, 0.3)';
+    } else {
+      draggedElement.style.borderBottom = '3px solid #10b981';
+      draggedElement.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
+    }
+    
+    // Highlight the drop zone
+    draggedElement.style.backgroundColor = isDarkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)';
+    draggedElement.style.transform = 'scale(1.02)';
+    draggedElement.style.transition = 'all 0.2s ease';
+  }
+};
+
+window.handleGroceryDragLeave = (event) => {
+  const draggedElement = event.currentTarget;
+  // Only clear if we're actually leaving the element (not entering a child)
+  if (!draggedElement.contains(event.relatedTarget)) {
+    draggedElement.style.borderTop = '';
+    draggedElement.style.borderBottom = '';
+    draggedElement.style.backgroundColor = '';
+    draggedElement.style.transform = '';
+    draggedElement.style.boxShadow = '';
   }
 };
 
@@ -2053,6 +2398,10 @@ window.handleGroceryDrop = async (event) => {
   
   // Remove visual feedback
   draggedElement.style.borderTop = '';
+  draggedElement.style.borderBottom = '';
+  draggedElement.style.backgroundColor = '';
+  draggedElement.style.transform = '';
+  draggedElement.style.boxShadow = '';
   
   if (targetGroceryId && draggedGroceryId && targetGroceryId !== draggedGroceryId) {
     await reorderGroceries(draggedGroceryId, targetGroceryId);
@@ -2065,6 +2414,11 @@ window.handleGroceryDragEnd = (event) => {
   // Remove visual feedback from all items
   document.querySelectorAll('[data-grocery-id]').forEach(item => {
     item.style.borderTop = '';
+    item.style.borderBottom = '';
+    item.style.backgroundColor = '';
+    item.style.transform = '';
+    item.style.boxShadow = '';
+    item.style.transition = '';
   });
   
   draggedGroceryId = null;
@@ -2077,13 +2431,33 @@ async function reorderGroceries(draggedId, targetId) {
     
     if (draggedIndex === -1 || targetIndex === -1) return;
     
-    const insertAfter = draggedIndex < targetIndex;
-    
+    // Calculate proper order value based on drop position
     let newOrder;
-    if (insertAfter) {
-      newOrder = (groceries[targetIndex].order || 0) + 0.5;
+    
+    if (draggedIndex < targetIndex) {
+      // Moving down: place after target
+      const nextIndex = targetIndex + 1;
+      if (nextIndex < groceries.length) {
+        // Insert between target and next item
+        const targetOrder = groceries[targetIndex].order || 0;
+        const nextOrder = groceries[nextIndex].order || 0;
+        newOrder = (targetOrder + nextOrder) / 2;
+      } else {
+        // Insert at the end
+        newOrder = (groceries[targetIndex].order || 0) + 1000;
+      }
     } else {
-      newOrder = (groceries[targetIndex].order || 0) - 0.5;
+      // Moving up: place before target
+      const prevIndex = targetIndex - 1;
+      if (prevIndex >= 0) {
+        // Insert between previous and target item
+        const prevOrder = groceries[prevIndex].order || 0;
+        const targetOrder = groceries[targetIndex].order || 0;
+        newOrder = (prevOrder + targetOrder) / 2;
+      } else {
+        // Insert at the beginning
+        newOrder = (groceries[targetIndex].order || 0) - 1000;
+      }
     }
     
     await updateDoc(doc(db, 'groceries', draggedId), {
@@ -2228,6 +2602,7 @@ function renderTodos() {
         onmouseout="this.style.transform='translateY(0)'"
         ondragstart="handleTodoDragStart(event)"
         ondragover="handleTodoDragOver(event)"
+        ondragleave="handleTodoDragLeave(event)"
         ondrop="handleTodoDrop(event)"
         ondragend="handleTodoDragEnd(event)">
         
@@ -2377,6 +2752,7 @@ function renderGroceries() {
       onmouseout="this.style.transform='translateY(0)'"
       ondragstart="handleGroceryDragStart(event)"
       ondragover="handleGroceryDragOver(event)"
+      ondragleave="handleGroceryDragLeave(event)"
       ondrop="handleGroceryDrop(event)"
       ondragend="handleGroceryDragEnd(event)">
       <button onclick="toggleGrocery('${grocery.id}')" style="
@@ -2430,27 +2806,33 @@ function renderEvents() {
     const dateStr = eventDate.toLocaleDateString();
     const timeStr = eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
+    const bgColor = isDarkMode ? 'rgba(40, 40, 40, 0.95)' : 'white';
+    const textColor = isDarkMode ? '#ffffff' : '#333333';
+    const secondaryTextColor = isDarkMode ? '#b3b3b3' : '#666666';
+    
     return `
       <div style="
-        background-color: white;
+        background-color: ${bgColor};
         padding: 20px;
         margin-bottom: 15px;
         border-radius: 12px;
-        border: 1px solid #ddd;
+        border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
         border-left: 4px solid ${isUpcoming ? '#FF9500' : '#ccc'};
-      ">
+        box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
+        transition: all 0.2s ease;
+      " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
         <div style="display: flex; justify-content: between; align-items: flex-start;">
           <div style="flex: 1;">
             <h3 style="
               margin: 0 0 8px 0;
-              color: ${isUpcoming ? '#333' : '#666'};
+              color: ${isUpcoming ? textColor : secondaryTextColor};
               font-size: 18px;
             ">${event.name}</h3>
             
             ${event.description ? `
               <p style="
                 margin: 0 0 12px 0;
-                color: #666;
+                color: ${secondaryTextColor};
                 line-height: 1.4;
               ">${event.description}</p>
             ` : ''}
@@ -2464,7 +2846,7 @@ function renderEvents() {
               <div style="
                 display: flex;
                 align-items: center;
-                color: #666;
+                color: ${secondaryTextColor};
                 font-size: 14px;
               ">
                 📅 ${dateStr} at ${timeStr}
@@ -2474,7 +2856,7 @@ function renderEvents() {
                 <div style="
                   display: flex;
                   align-items: center;
-                  color: #666;
+                  color: ${secondaryTextColor};
                   font-size: 14px;
                 ">
                   📍 ${event.location}
@@ -2483,16 +2865,38 @@ function renderEvents() {
             </div>
           </div>
           
-          <button onclick="deleteEvent('${event.id}')" style="
-            width: 30px;
-            height: 30px;
-            border: none;
-            background: none;
-            color: #FF3B30;
-            font-size: 20px;
-            cursor: pointer;
-            margin-left: 10px;
-          ">×</button>
+          <div style="display: flex; gap: 4px; margin-left: 10px;">
+            <button onclick="editEvent('${event.id}')" style="
+              width: 32px;
+              height: 32px;
+              border: none;
+              background: none;
+              color: ${isDarkMode ? '#64b5f6' : '#2196f3'};
+              font-size: 16px;
+              cursor: pointer;
+              border-radius: 8px;
+              transition: all 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " onmouseover="this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'"
+               onmouseout="this.style.background='none'">✏️</button>
+            <button onclick="deleteEvent('${event.id}')" style="
+              width: 32px;
+              height: 32px;
+              border: none;
+              background: none;
+              color: ${isDarkMode ? '#ff6b6b' : '#FF3B30'};
+              font-size: 20px;
+              cursor: pointer;
+              border-radius: 8px;
+              transition: all 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " onmouseover="this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'"
+               onmouseout="this.style.background='none'">×</button>
+          </div>
         </div>
       </div>
     `;

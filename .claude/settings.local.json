@@ -11,7 +11,15 @@
       "Bash(git commit:*)",
       "Bash(git add:*)",
       "Bash(npm run build:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run web:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run:*)",
+      "Bash(npm start)",
+      "Bash(python:*)",
+      "Bash(npx serve:*)",
+      "Bash(npx webpack:*)"
     ],
     "deny": [],
     "ask": []

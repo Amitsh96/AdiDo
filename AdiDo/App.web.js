@@ -1,15 +1,16 @@
 /**
- * AdiDo - Web Version Test
+ * AdiDo - Web Version - Updated with Enhanced Features
  */
 
 import React from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppNavigator from './src/navigation/AppNavigator.web';
 
 function App() {
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f0f0f0', minHeight: '100vh' }}>
-      <h1>AdiDo App - Test</h1>
-      <p>If you see this, React is working!</p>
-    </div>
+    <SafeAreaProvider>
+      <AppNavigator />
+    </SafeAreaProvider>
   );
 }
 

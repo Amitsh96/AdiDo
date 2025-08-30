@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const TODOS_KEY = 'ADIDO_TODOS';
 const GROCERIES_KEY = 'ADIDO_GROCERIES';
@@ -45,6 +46,33 @@ export const StorageService = {
       await AsyncStorage.multiRemove([TODOS_KEY, GROCERIES_KEY]);
     } catch (error) {
       console.error('Error clearing data:', error);
+    }
+  },
+
+  async setItem(key, value) {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      } else {
+        await AsyncStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch (error) {
+      console.error('Error setting item:', error);
+    }
+  },
+
+  async getItem(key) {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        const value = window.localStorage.getItem(key);
+        return value ? JSON.parse(value) : null;
+      } else {
+        const value = await AsyncStorage.getItem(key);
+        return value ? JSON.parse(value) : null;
+      }
+    } catch (error) {
+      console.error('Error getting item:', error);
+      return null;
     }
   },
 };
