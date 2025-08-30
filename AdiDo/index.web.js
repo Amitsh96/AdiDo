@@ -31,6 +31,165 @@ let filterCategory = 'all';
 let showAddTodoModal = false;
 let showTagModal = false;
 let editingTodo = null; // Todo currently being edited
+let currentLanguage = 'en';
+
+// Translation object
+const translations = {
+  en: {
+    // Navigation
+    todo: '📝 Todo',
+    grocery: '🛒 Grocery',
+    events: '📅 Events',
+    profile: '👤 Profile',
+    
+    // Common
+    add: 'Add',
+    edit: 'Edit',
+    delete: 'Delete',
+    save: 'Save',
+    cancel: 'Cancel',
+    close: 'Close',
+    
+    // Todo page
+    addNewTodo: '✨ Add New Todo',
+    manageTags: 'Manage Tags',
+    filterCategory: 'All Categories',
+    todoText: 'Enter todo text...',
+    dueDate: 'Due Date',
+    category: 'Category',
+    priority: 'Priority',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    personal: 'Personal',
+    work: 'Work',
+    urgent: 'Urgent',
+    
+    // Events
+    addEvent: '+ Add Event',
+    eventName: 'Event name...',
+    eventDescription: 'Event description...',
+    location: 'Location...',
+    date: 'Date',
+    time: 'Time',
+    editEvent: 'Edit Event',
+    
+    // Profile
+    darkMode: 'Dark Mode',
+    language: 'Language',
+    english: 'English',
+    hebrew: 'עברית',
+    signOut: 'Sign Out',
+    
+    // Tag Management
+    manageTags: 'Manage Tags',
+    defaultTags: 'Default Tags',
+    customTags: 'Custom Tags',
+    tagName: 'Tag name...',
+    addTag: 'Add Tag',
+    
+    // Messages
+    invalidDate: 'Invalid Date',
+    failedToUpdateEvent: 'Failed to update event',
+    pleaseEnterEventName: 'Please enter event name',
+    pleaseSelectDateTime: 'Please select date and time'
+  },
+  he: {
+    // Navigation  
+    todo: '📝 משימות',
+    grocery: '🛒 קניות',
+    events: '📅 אירועים',
+    profile: '👤 פרופיל',
+    
+    // Common
+    add: 'הוסף',
+    edit: 'ערוך',
+    delete: 'מחק',
+    save: 'שמור',
+    cancel: 'בטל',
+    close: 'סגור',
+    
+    // Todo page
+    addNewTodo: '✨ הוסף משימה חדשה',
+    manageTags: 'נהל תגיות',
+    filterCategory: 'כל הקטגוריות',
+    todoText: 'הכנס טקסט משימה...',
+    dueDate: 'תאריך יעד',
+    category: 'קטגוריה',
+    priority: 'עדיפות',
+    low: 'נמוך',
+    medium: 'בינוני',
+    high: 'גבוה',
+    personal: 'אישי',
+    work: 'עבודה',
+    urgent: 'דחוף',
+    
+    // Events
+    addEvent: '+ הוסף אירוע',
+    eventName: 'שם האירוע...',
+    eventDescription: 'תיאור האירוע...',
+    location: 'מיקום...',
+    date: 'תאריך',
+    time: 'שעה',
+    editEvent: 'ערוך אירוע',
+    
+    // Profile
+    darkMode: 'מצב כהה',
+    language: 'שפה',
+    english: 'English',
+    hebrew: 'עברית',
+    signOut: 'התנתק',
+    
+    // Tag Management
+    manageTags: 'נהל תגיות',
+    defaultTags: 'תגיות ברירת מחדל',
+    customTags: 'תגיות מותאמות',
+    tagName: 'שם התגית...',
+    addTag: 'הוסף תגית',
+    
+    // Messages
+    invalidDate: 'תאריך לא תקין',
+    failedToUpdateEvent: 'כשל בעדכון האירוע',
+    pleaseEnterEventName: 'אנא הכנס שם אירוע',
+    pleaseSelectDateTime: 'אנא בחר תאריך ושעה'
+  }
+};
+
+// Get translation function
+function t(key) {
+  return translations[currentLanguage][key] || translations.en[key] || key;
+}
+
+// Language management
+function getCurrentLanguage() {
+  try {
+    return localStorage.getItem('language') || 'en';
+  } catch (error) {
+    return 'en';
+  }
+}
+
+function setCurrentLanguage(lang) {
+  try {
+    localStorage.setItem('language', lang);
+    currentLanguage = lang;
+    // Update document direction for Hebrew
+    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+    // Reload the current view
+    const activeTab = document.querySelector('.nav-tab.active');
+    if (activeTab) {
+      loadTabContent(activeTab.dataset.tab);
+    }
+  } catch (error) {
+    console.error('Error saving language:', error);
+  }
+}
+
+// Initialize language on app start
+function initializeLanguage() {
+  currentLanguage = getCurrentLanguage();
+  document.documentElement.dir = currentLanguage === 'he' ? 'rtl' : 'ltr';
+}
 
 // Create the main app HTML
 function createApp() {
@@ -391,9 +550,61 @@ function setupEventListeners() {
 
 function getAllCategories() {
   const defaultCategories = ['all', 'personal', 'work', 'urgent'];
+  const disabledTags = getDisabledTags();
+  const enabledDefaults = defaultCategories.filter(cat => !disabledTags.includes(cat));
   const customTagNames = tags.map(tag => tag.name);
-  return [...defaultCategories, ...customTagNames];
+  return [...enabledDefaults, ...customTagNames];
 }
+
+function getDisabledTags() {
+  try {
+    const disabled = localStorage.getItem('disabledTags');
+    return disabled ? JSON.parse(disabled) : [];
+  } catch (error) {
+    console.error('Error reading disabled tags:', error);
+    return [];
+  }
+}
+
+function setDisabledTags(disabledTags) {
+  try {
+    localStorage.setItem('disabledTags', JSON.stringify(disabledTags));
+  } catch (error) {
+    console.error('Error saving disabled tags:', error);
+  }
+}
+
+function disableDefaultTag(tagName) {
+  const disabledTags = getDisabledTags();
+  if (!disabledTags.includes(tagName)) {
+    disabledTags.push(tagName);
+    setDisabledTags(disabledTags);
+  }
+}
+
+function restoreDefaultTag(tagName) {
+  const disabledTags = getDisabledTags();
+  const index = disabledTags.indexOf(tagName);
+  if (index > -1) {
+    disabledTags.splice(index, 1);
+    setDisabledTags(disabledTags);
+    renderExistingTags();
+    refreshCurrentView();
+  }
+}
+
+function refreshCurrentView() {
+  // Refresh the current tab to reflect tag changes
+  const activeTab = document.querySelector('.nav-tab.active');
+  if (activeTab && activeTab.dataset.tab === 'todos') {
+    renderTodos();
+  }
+}
+
+// Make functions available globally
+window.disableDefaultTag = disableDefaultTag;
+window.restoreDefaultTag = restoreDefaultTag;
+window.refreshCurrentView = refreshCurrentView;
 
 function showError(message, isError = true) {
   const errorDiv = document.getElementById('authError');
@@ -1584,6 +1795,56 @@ function loadTabContent(tab) {
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
           ">${isDarkMode ? '☀️' : '🌙'}</button>
         </div>
+        
+        <!-- Language Toggle -->
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          padding: 20px;
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
+          border-radius: 16px;
+          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+        ">
+          <div>
+            <h4 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0 0 4px 0;
+              font-size: 16px;
+              font-weight: 600;
+            ">${t('language')}</h4>
+            <p style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              margin: 0;
+              font-size: 14px;
+            ">Choose your preferred language</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="langEnBtn" style="
+              padding: 8px 12px;
+              background: ${currentLanguage === 'en' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? '#404040' : '#f1f5f9')};
+              color: ${currentLanguage === 'en' ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+            ">${t('english')}</button>
+            <button id="langHeBtn" style="
+              padding: 8px 12px;
+              background: ${currentLanguage === 'he' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? '#404040' : '#f1f5f9')};
+              color: ${currentLanguage === 'he' ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+            ">${t('hebrew')}</button>
+          </div>
+        </div>
       
         <button id="logoutBtn" style="
           width: 100%;
@@ -1618,6 +1879,15 @@ function loadTabContent(tab) {
       localStorage.setItem('darkMode', isDarkMode);
       updateThemeStyles();
       loadTabContent('profile'); // Refresh profile to show new theme
+    });
+    
+    // Setup language toggle event listeners
+    document.getElementById('langEnBtn').addEventListener('click', () => {
+      setCurrentLanguage('en');
+    });
+    
+    document.getElementById('langHeBtn').addEventListener('click', () => {
+      setCurrentLanguage('he');
     });
   }
 }
@@ -1787,7 +2057,120 @@ function renderExistingTags() {
   const existingTagsList = document.getElementById('existingTagsList');
   if (!existingTagsList) return;
   
-  if (tags.length === 0) {
+  const defaultTags = [
+    { name: 'personal', color: '#4caf50' },
+    { name: 'work', color: '#2196f3' },
+    { name: 'urgent', color: '#ff5722' }
+  ];
+  
+  const disabledTags = getDisabledTags();
+  
+  let tagsHTML = '';
+  
+  // Add default tags section
+  if (defaultTags.length > 0) {
+    tagsHTML += `
+      <div style="
+        font-size: 14px;
+        font-weight: 600;
+        color: ${isDarkMode ? '#b3b3b3' : '#666'};
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      ">Default Tags</div>
+    `;
+    
+    defaultTags.forEach(tag => {
+      const isDisabled = disabledTags.includes(tag.name);
+      tagsHTML += `
+        <div style="
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          background: ${isDisabled ? (isDarkMode ? '#2c2c2c' : '#f0f0f0') : (isDarkMode ? '#404040' : '#f8f8f8')};
+          border-radius: 8px;
+          margin-bottom: 8px;
+          opacity: ${isDisabled ? '0.5' : '1'};
+        ">
+          <div style="
+            width: 16px;
+            height: 16px;
+            background-color: ${tag.color};
+            border-radius: 8px;
+            margin-right: 12px;
+          "></div>
+          <span style="
+            flex: 1;
+            font-size: 16px;
+            color: ${isDarkMode ? '#ffffff' : '#333'};
+            text-decoration: ${isDisabled ? 'line-through' : 'none'};
+          ">${tag.name}</span>
+          <button onclick="${isDisabled ? `restoreDefaultTag('${tag.name}')` : `disableDefaultTag('${tag.name}'); renderExistingTags(); refreshCurrentView();`}" style="
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            color: ${isDisabled ? '#4caf50' : '#f44336'};
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+          ">${isDisabled ? '↻' : '×'}</button>
+        </div>
+      `;
+    });
+  }
+  
+  // Add custom tags section
+  if (tags.length > 0) {
+    tagsHTML += `
+      <div style="
+        font-size: 14px;
+        font-weight: 600;
+        color: ${isDarkMode ? '#b3b3b3' : '#666'};
+        margin: 20px 0 12px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      ">Custom Tags</div>
+    `;
+    
+    tags.forEach(tag => {
+      tagsHTML += `
+        <div style="
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          background: ${isDarkMode ? '#404040' : '#f8f8f8'};
+          border-radius: 8px;
+          margin-bottom: 8px;
+        ">
+          <div style="
+            width: 16px;
+            height: 16px;
+            background-color: ${tag.color};
+            border-radius: 8px;
+            margin-right: 12px;
+          "></div>
+          <span style="
+            flex: 1;
+            font-size: 16px;
+            color: ${isDarkMode ? '#ffffff' : '#333'};
+          ">${tag.name}</span>
+          <button onclick="deleteTag('${tag.id}')" style="
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            color: #f44336;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+          ">×</button>
+        </div>
+      `;
+    });
+  }
+  
+  if (tagsHTML === '') {
     existingTagsList.innerHTML = `
       <div style="
         text-align: center;
@@ -1795,44 +2178,11 @@ function renderExistingTags() {
         font-style: italic;
         padding: 20px;
         font-size: 14px;
-      ">No custom tags yet</div>
+      ">No tags available</div>
     `;
-    return;
+  } else {
+    existingTagsList.innerHTML = tagsHTML;
   }
-  
-  existingTagsList.innerHTML = tags.map(tag => `
-    <div style="
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      background: ${isDarkMode ? '#404040' : '#f8f8f8'};
-      border-radius: 8px;
-      margin-bottom: 8px;
-    ">
-      <div style="
-        width: 16px;
-        height: 16px;
-        border-radius: 8px;
-        background-color: ${tag.color};
-        margin-right: 12px;
-      "></div>
-      <span style="
-        flex: 1;
-        font-size: 16px;
-        color: ${isDarkMode ? '#ffffff' : '#333'};
-      ">${tag.name}</span>
-      <button onclick="deleteTag('${tag.id}')" style="
-        width: 24px;
-        height: 24px;
-        border: none;
-        background: none;
-        color: #f44336;
-        font-size: 18px;
-        font-weight: bold;
-        cursor: pointer;
-      ">×</button>
-    </div>
-  `).join('');
 }
 
 function setupTagModalListeners() {
@@ -1947,10 +2297,25 @@ function openEditTodoModal(todo) {
 }
 
 function getCategoryColorForEdit(category) {
-  const defaultColors = { personal: '#4caf50', work: '#2196f3', urgent: '#ff5722' };
-  if (defaultColors[category]) return defaultColors[category];
+  const defaultColors = {
+    personal: '#4caf50',
+    work: '#2196f3', 
+    urgent: '#ff5722'
+  };
+  
+  // Check if it's a default category
+  if (defaultColors[category]) {
+    return defaultColors[category];
+  }
+  
+  // Look for custom tag
   const customTag = tags.find(tag => tag.name === category);
-  return customTag ? customTag.color : '#667eea';
+  if (customTag) {
+    return customTag.color;
+  }
+  
+  // Default color for unknown categories
+  return '#667eea';
 }
 
 function setupEditModalListeners() {
@@ -2062,7 +2427,11 @@ function openEditEventModal(event) {
   
   // Parse datetime for date and time inputs
   if (event.datetime) {
-    const eventDate = new Date(event.datetime.seconds * 1000);
+    // Handle both Timestamp objects and regular dates
+    const eventDate = event.datetime.seconds 
+      ? new Date(event.datetime.seconds * 1000)
+      : new Date(event.datetime);
+    
     document.getElementById('editEventDateInput').value = eventDate.toISOString().split('T')[0];
     document.getElementById('editEventTimeInput').value = eventDate.toTimeString().split(' ')[0].substring(0, 5);
   } else {
@@ -2798,10 +3167,18 @@ function renderEvents() {
   if (!eventsList) return;
   
   // Sort events by datetime
-  const sortedEvents = [...events].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  const sortedEvents = [...events].sort((a, b) => {
+    const aDate = a.datetime && a.datetime.seconds ? new Date(a.datetime.seconds * 1000) : new Date(a.datetime);
+    const bDate = b.datetime && b.datetime.seconds ? new Date(b.datetime.seconds * 1000) : new Date(b.datetime);
+    return aDate - bDate;
+  });
   
   eventsList.innerHTML = sortedEvents.map(event => {
-    const eventDate = new Date(event.datetime);
+    // Handle both Timestamp objects and regular dates
+    const eventDate = event.datetime && event.datetime.seconds 
+      ? new Date(event.datetime.seconds * 1000) 
+      : new Date(event.datetime);
+    
     const isUpcoming = eventDate > new Date();
     const dateStr = eventDate.toLocaleDateString();
     const timeStr = eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3028,5 +3405,6 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Initialize the app
+initializeLanguage();
 createApp();
 
