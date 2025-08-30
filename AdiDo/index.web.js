@@ -201,14 +201,15 @@ function createApp() {
       ">
         <div id="navigation" style="
           display: flex;
-          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(20px);
-          border-bottom: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.8)' : 'rgba(226, 232, 240, 0.8)'};
-          padding: 8px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          padding: 12px 8px;
           position: sticky;
           top: 0;
           z-index: 10;
-          gap: 4px;
+          gap: 6px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         ">
           <button class="nav-tab active" data-tab="todos" style="
             flex: 1;
@@ -225,39 +226,39 @@ function createApp() {
           ">📝 Todo</button>
           <button class="nav-tab" data-tab="grocery" style="
             flex: 1;
-            padding: 12px 20px;
+            padding: 14px 20px;
             border: none;
-            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
-            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
           ">🛒 Grocery</button>
           <button class="nav-tab" data-tab="events" style="
             flex: 1;
-            padding: 12px 20px;
+            padding: 14px 20px;
             border: none;
-            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
-            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
           ">📅 Events</button>
           <button class="nav-tab" data-tab="profile" style="
             flex: 1;
-            padding: 12px 20px;
+            padding: 14px 20px;
             border: none;
-            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'};
-            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            background: rgba(255, 255, 255, 0.15);
+            color: #1a202c;
             font-size: 14px;
             font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
           ">👤 Profile</button>
         </div>
         
@@ -401,9 +402,42 @@ function showError(message, isError = true) {
   errorDiv.style.display = 'block';
 }
 
+function updateThemeStyles() {
+  // Update main screen background
+  const mainScreen = document.getElementById('mainScreen');
+  if (mainScreen) {
+    mainScreen.style.background = isDarkMode 
+      ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' 
+      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+  }
+
+  // Update navigation bar
+  const navigation = document.getElementById('navigation');
+  if (navigation) {
+    navigation.style.background = isDarkMode 
+      ? 'rgba(20, 30, 48, 0.95)' 
+      : 'rgba(255, 255, 255, 0.95)';
+    navigation.style.borderBottom = isDarkMode 
+      ? '1px solid rgba(51, 65, 85, 0.8)' 
+      : '1px solid rgba(226, 232, 240, 0.8)';
+    navigation.style.boxShadow = isDarkMode 
+      ? '0 4px 20px rgba(0, 0, 0, 0.3)' 
+      : '0 4px 20px rgba(0, 0, 0, 0.1)';
+  }
+
+  // Update inactive tab styles
+  document.querySelectorAll('.nav-tab:not(.active)').forEach(tab => {
+    tab.style.background = isDarkMode 
+      ? 'rgba(51, 65, 85, 0.5)' 
+      : 'rgba(255, 255, 255, 0.15)';
+    tab.style.color = isDarkMode ? '#e2e8f0' : '#1a202c';
+  });
+}
+
 function showMainScreen() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'block';
+  updateThemeStyles();
   setupNavigationListeners();
   loadTabContent('todos');
 }
@@ -829,6 +863,169 @@ function loadTabContent(tab) {
               color: white;
               box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
             ">Add Tag</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Todo Modal -->
+      <div id="editTodoModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${bgColor};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <h3 style="
+            color: ${textColor};
+            margin: 0 0 24px 0;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+          ">Edit Todo</h3>
+          
+          <textarea id="editTodoTextInput" placeholder="Enter todo text..." style="
+            width: 100%;
+            min-height: 80px;
+            border: 2px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+            border-radius: 12px;
+            padding: 16px;
+            background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
+            color: ${textColor};
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+          "></textarea>
+
+          <div style="margin-bottom: 20px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Category:</label>
+            <div id="editCategoryButtons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <!-- Category buttons will be populated dynamically -->
+            </div>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Priority:</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="edit-priority-btn" data-priority="low" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">Low</button>
+                <button class="edit-priority-btn" data-priority="medium" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">Medium</button>
+                <button class="edit-priority-btn" data-priority="high" style="
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  text-transform: capitalize;
+                  background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+                  color: ${textColor};
+                ">High</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <label style="
+              display: block;
+              color: ${textColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            ">Due Date (optional):</label>
+            <input type="date" id="editTodoDueDateInput" style="
+              width: 100%;
+              height: 48px;
+              border: 2px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+              border-radius: 12px;
+              padding: 0 16px;
+              background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
+              color: ${textColor};
+              font-size: 16px;
+              outline: none;
+              box-sizing: border-box;
+            ">
+          </div>
+
+          <div style="
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+          ">
+            <button id="cancelEditTodoBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+              color: ${textColor};
+            ">Cancel</button>
+            <button id="saveEditTodoBtn" style="
+              padding: 12px 24px;
+              border: none;
+              border-radius: 12px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            ">Save Changes</button>
           </div>
         </div>
       </div>
@@ -1279,6 +1476,7 @@ function loadTabContent(tab) {
     document.getElementById('themeToggle').addEventListener('click', () => {
       isDarkMode = !isDarkMode;
       localStorage.setItem('darkMode', isDarkMode);
+      updateThemeStyles();
       loadTabContent('profile'); // Refresh profile to show new theme
     });
   }
@@ -1561,6 +1759,343 @@ window.deleteTag = async (tagId) => {
   }
 };
 
+let editingTodoId = null;
+
+function openEditTodoModal(todo) {
+  editingTodoId = todo.id;
+  
+  // Populate form fields
+  document.getElementById('editTodoTextInput').value = todo.text;
+  document.getElementById('editTodoDueDateInput').value = todo.dueDate 
+    ? new Date(todo.dueDate.seconds * 1000).toISOString().split('T')[0] 
+    : '';
+  
+  // Populate category buttons
+  const editCategoryButtons = document.getElementById('editCategoryButtons');
+  const allCategories = getAllCategories().filter(cat => cat !== 'all');
+  editCategoryButtons.innerHTML = allCategories.map(category => `
+    <button class="edit-category-btn" data-category="${category}" style="
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: capitalize;
+      background: ${todo.category === category ? getCategoryColorForEdit(category) : (isDarkMode ? '#404040' : '#f1f5f9')};
+      color: ${todo.category === category ? 'white' : (isDarkMode ? '#ffffff' : '#333')};
+    ">${category}</button>
+  `).join('');
+  
+  // Set priority buttons
+  document.querySelectorAll('.edit-priority-btn').forEach(btn => {
+    if (btn.dataset.priority === todo.priority) {
+      btn.classList.add('selected');
+      const colors = { low: '#4caf50', medium: '#ff9800', high: '#f44336' };
+      btn.style.background = colors[todo.priority] || '#ff9800';
+      btn.style.color = 'white';
+    } else {
+      btn.classList.remove('selected');
+      btn.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+      btn.style.color = isDarkMode ? '#ffffff' : '#333';
+    }
+  });
+  
+  document.getElementById('editTodoModal').style.display = 'flex';
+  setupEditModalListeners();
+}
+
+function getCategoryColorForEdit(category) {
+  const defaultColors = { personal: '#4caf50', work: '#2196f3', urgent: '#ff5722' };
+  if (defaultColors[category]) return defaultColors[category];
+  const customTag = tags.find(tag => tag.name === category);
+  return customTag ? customTag.color : '#667eea';
+}
+
+function setupEditModalListeners() {
+  // Category button listeners
+  document.querySelectorAll('.edit-category-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.edit-category-btn').forEach(b => {
+        b.classList.remove('selected');
+        b.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+        b.style.color = isDarkMode ? '#ffffff' : '#333';
+      });
+      
+      e.target.classList.add('selected');
+      e.target.style.background = getCategoryColorForEdit(e.target.dataset.category);
+      e.target.style.color = 'white';
+    });
+  });
+  
+  // Priority button listeners
+  document.querySelectorAll('.edit-priority-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.edit-priority-btn').forEach(b => {
+        b.classList.remove('selected');
+        b.style.background = isDarkMode ? '#404040' : '#f1f5f9';
+        b.style.color = isDarkMode ? '#ffffff' : '#333';
+      });
+      
+      e.target.classList.add('selected');
+      const colors = { low: '#4caf50', medium: '#ff9800', high: '#f44336' };
+      e.target.style.background = colors[e.target.dataset.priority] || '#ff9800';
+      e.target.style.color = 'white';
+    });
+  });
+  
+  // Save button
+  const saveBtn = document.getElementById('saveEditTodoBtn');
+  if (saveBtn) {
+    saveBtn.replaceWith(saveBtn.cloneNode(true));
+    document.getElementById('saveEditTodoBtn').addEventListener('click', saveEditedTodo);
+  }
+  
+  // Cancel button
+  const cancelBtn = document.getElementById('cancelEditTodoBtn');
+  if (cancelBtn) {
+    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+    document.getElementById('cancelEditTodoBtn').addEventListener('click', () => {
+      document.getElementById('editTodoModal').style.display = 'none';
+    });
+  }
+}
+
+async function saveEditedTodo() {
+  if (!editingTodoId) return;
+  
+  const text = document.getElementById('editTodoTextInput').value.trim();
+  const dueDate = document.getElementById('editTodoDueDateInput').value;
+  
+  const selectedCategoryBtn = document.querySelector('.edit-category-btn.selected');
+  const selectedPriorityBtn = document.querySelector('.edit-priority-btn.selected');
+  
+  const category = selectedCategoryBtn ? selectedCategoryBtn.dataset.category : 'personal';
+  const priority = selectedPriorityBtn ? selectedPriorityBtn.dataset.priority : 'medium';
+  
+  if (!text) {
+    alert('Please enter todo text');
+    return;
+  }
+  
+  try {
+    const updates = {
+      text: text,
+      category: category,
+      priority: priority,
+      updatedAt: serverTimestamp()
+    };
+    
+    if (dueDate) {
+      updates.dueDate = new Date(dueDate);
+    } else {
+      updates.dueDate = null;
+    }
+    
+    await updateDoc(doc(db, 'todos', editingTodoId), updates);
+    document.getElementById('editTodoModal').style.display = 'none';
+    editingTodoId = null;
+  } catch (error) {
+    console.error('Error updating todo:', error);
+    alert('Failed to update todo');
+  }
+}
+
+window.editTodo = (todoId) => {
+  const todo = todos.find(t => t.id === todoId);
+  if (todo) {
+    openEditTodoModal(todo);
+  }
+};
+
+// Drag and drop functionality
+let draggedTodoId = null;
+
+window.handleTodoDragStart = (event) => {
+  draggedTodoId = event.target.getAttribute('data-todo-id');
+  event.target.style.opacity = '0.5';
+  event.dataTransfer.effectAllowed = 'move';
+};
+
+window.handleTodoDragOver = (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  // Visual feedback
+  const draggedElement = event.currentTarget;
+  if (draggedElement.getAttribute('data-todo-id') !== draggedTodoId) {
+    draggedElement.style.borderTop = '2px solid #667eea';
+  }
+};
+
+window.handleTodoDrop = async (event) => {
+  event.preventDefault();
+  
+  const targetTodoId = event.currentTarget.getAttribute('data-todo-id');
+  const draggedElement = event.currentTarget;
+  
+  // Remove visual feedback
+  draggedElement.style.borderTop = '';
+  
+  if (targetTodoId && draggedTodoId && targetTodoId !== draggedTodoId) {
+    await reorderTodos(draggedTodoId, targetTodoId);
+  }
+};
+
+window.handleTodoDragEnd = (event) => {
+  event.target.style.opacity = '1';
+  
+  // Remove visual feedback from all items
+  document.querySelectorAll('[data-todo-id]').forEach(item => {
+    item.style.borderTop = '';
+  });
+  
+  draggedTodoId = null;
+};
+
+async function reorderTodos(draggedId, targetId) {
+  try {
+    // Find the todos in the current filtered list
+    const currentTodos = getFilteredTodos();
+    const draggedIndex = currentTodos.findIndex(t => t.id === draggedId);
+    const targetIndex = currentTodos.findIndex(t => t.id === targetId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) return;
+    
+    // Create new order values
+    const updates = [];
+    
+    // If dragging down, insert after target
+    // If dragging up, insert before target
+    const insertAfter = draggedIndex < targetIndex;
+    
+    if (insertAfter) {
+      // Moving down: set order to be after target
+      const newOrder = (currentTodos[targetIndex].order || 0) + 0.5;
+      updates.push({ id: draggedId, order: newOrder });
+    } else {
+      // Moving up: set order to be before target
+      const newOrder = (currentTodos[targetIndex].order || 0) - 0.5;
+      updates.push({ id: draggedId, order: newOrder });
+    }
+    
+    // Update Firebase
+    for (const update of updates) {
+      await updateDoc(doc(db, 'todos', update.id), {
+        order: update.order,
+        updatedAt: serverTimestamp()
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error reordering todos:', error);
+  }
+}
+
+function getFilteredTodos() {
+  let filteredTodos = todos;
+  if (filterCategory !== 'all') {
+    filteredTodos = todos.filter(todo => todo.category === filterCategory);
+  }
+  
+  // Sort by order first, then by priority and due date
+  return filteredTodos.sort((a, b) => {
+    // Primary sort by order
+    const aOrder = a.order || 0;
+    const bOrder = b.order || 0;
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+    
+    // Secondary sort by priority
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    const aPriority = priorityOrder[a.priority] || 2;
+    const bPriority = priorityOrder[b.priority] || 2;
+    
+    if (aPriority !== bPriority) {
+      return bPriority - aPriority;
+    }
+    
+    // Tertiary sort by due date
+    if (a.dueDate && b.dueDate) {
+      return new Date(a.dueDate.seconds * 1000) - new Date(b.dueDate.seconds * 1000);
+    }
+    
+    return 0;
+  });
+}
+
+// Grocery drag and drop functionality
+let draggedGroceryId = null;
+
+window.handleGroceryDragStart = (event) => {
+  draggedGroceryId = event.target.getAttribute('data-grocery-id');
+  event.target.style.opacity = '0.5';
+  event.dataTransfer.effectAllowed = 'move';
+};
+
+window.handleGroceryDragOver = (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  const draggedElement = event.currentTarget;
+  if (draggedElement.getAttribute('data-grocery-id') !== draggedGroceryId) {
+    draggedElement.style.borderTop = '2px solid #10b981';
+  }
+};
+
+window.handleGroceryDrop = async (event) => {
+  event.preventDefault();
+  
+  const targetGroceryId = event.currentTarget.getAttribute('data-grocery-id');
+  const draggedElement = event.currentTarget;
+  
+  // Remove visual feedback
+  draggedElement.style.borderTop = '';
+  
+  if (targetGroceryId && draggedGroceryId && targetGroceryId !== draggedGroceryId) {
+    await reorderGroceries(draggedGroceryId, targetGroceryId);
+  }
+};
+
+window.handleGroceryDragEnd = (event) => {
+  event.target.style.opacity = '1';
+  
+  // Remove visual feedback from all items
+  document.querySelectorAll('[data-grocery-id]').forEach(item => {
+    item.style.borderTop = '';
+  });
+  
+  draggedGroceryId = null;
+};
+
+async function reorderGroceries(draggedId, targetId) {
+  try {
+    const draggedIndex = groceries.findIndex(g => g.id === draggedId);
+    const targetIndex = groceries.findIndex(g => g.id === targetId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) return;
+    
+    const insertAfter = draggedIndex < targetIndex;
+    
+    let newOrder;
+    if (insertAfter) {
+      newOrder = (groceries[targetIndex].order || 0) + 0.5;
+    } else {
+      newOrder = (groceries[targetIndex].order || 0) - 0.5;
+    }
+    
+    await updateDoc(doc(db, 'groceries', draggedId), {
+      order: newOrder,
+      updatedAt: serverTimestamp()
+    });
+    
+  } catch (error) {
+    console.error('Error reordering groceries:', error);
+  }
+}
+
 async function addGrocery() {
   const textInput = document.getElementById('groceryInput');
   const quantityInput = document.getElementById('quantityInput');
@@ -1628,28 +2163,8 @@ function renderTodos() {
     return;
   }
   
-  // Filter todos based on selected category
-  let filteredTodos = todos;
-  if (filterCategory !== 'all') {
-    filteredTodos = todos.filter(todo => todo.category === filterCategory);
-  }
-  
-  // Sort todos by priority and due date
-  filteredTodos = filteredTodos.sort((a, b) => {
-    const priorityOrder = { high: 3, medium: 2, low: 1 };
-    const aPriority = priorityOrder[a.priority] || 2;
-    const bPriority = priorityOrder[b.priority] || 2;
-    
-    if (aPriority !== bPriority) {
-      return bPriority - aPriority; // High priority first
-    }
-    
-    if (a.dueDate && b.dueDate) {
-      return new Date(a.dueDate.seconds * 1000) - new Date(b.dueDate.seconds * 1000);
-    }
-    
-    return 0;
-  });
+  // Get filtered and sorted todos
+  const filteredTodos = getFilteredTodos();
   
   const bgColor = isDarkMode ? 'rgba(40, 40, 40, 0.95)' : 'white';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
@@ -1693,18 +2208,28 @@ function renderTodos() {
     };
     
     return `
-      <div style="
-        display: flex;
-        align-items: flex-start;
-        background: ${bgColor};
-        backdrop-filter: blur(20px);
-        padding: 20px;
-        border-radius: 16px;
-        border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
-        box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
-        transition: all 0.2s ease;
-        margin-bottom: 12px;
-      " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+      <div 
+        draggable="true"
+        data-todo-id="${todo.id}"
+        style="
+          display: flex;
+          align-items: flex-start;
+          background: ${bgColor};
+          backdrop-filter: blur(20px);
+          padding: 20px;
+          border-radius: 16px;
+          border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+          box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
+          transition: all 0.2s ease;
+          margin-bottom: 12px;
+          cursor: move;
+        " 
+        onmouseover="this.style.transform='translateY(-2px)'" 
+        onmouseout="this.style.transform='translateY(0)'"
+        ondragstart="handleTodoDragStart(event)"
+        ondragover="handleTodoDragOver(event)"
+        ondrop="handleTodoDrop(event)"
+        ondragend="handleTodoDragEnd(event)">
         
         <button onclick="toggleTodo('${todo.id}')" style="
           width: 28px;
@@ -1781,22 +2306,38 @@ function renderTodos() {
           </div>
         </div>
         
-        <button onclick="deleteTodo('${todo.id}')" style="
-          width: 32px;
-          height: 32px;
-          border: none;
-          background: none;
-          color: ${isDarkMode ? '#ff6b6b' : '#FF3B30'};
-          font-size: 20px;
-          font-weight: bold;
-          cursor: pointer;
-          margin-left: 8px;
-          border-radius: 8px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        " onmouseover="this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="this.style.background='none'">×</button>
+        <div style="display: flex; gap: 4px; margin-left: 8px;">
+          <button onclick="editTodo('${todo.id}')" style="
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            color: ${isDarkMode ? '#64b5f6' : '#2196f3'};
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          " onmouseover="this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'" onmouseout="this.style.background='none'">✏️</button>
+          <button onclick="deleteTodo('${todo.id}')" style="
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            color: ${isDarkMode ? '#ff6b6b' : '#FF3B30'};
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          " onmouseover="this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="this.style.background='none'">×</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -1806,16 +2347,38 @@ function renderGroceries() {
   const groceriesList = document.getElementById('groceriesList');
   if (!groceriesList) return;
   
-  groceriesList.innerHTML = groceries.map(grocery => `
-    <div style="
-      display: flex;
-      align-items: center;
-      background-color: white;
-      padding: 15px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-    ">
+  // Sort groceries by order, then by creation date
+  const sortedGroceries = groceries.sort((a, b) => {
+    const aOrder = a.order || 0;
+    const bOrder = b.order || 0;
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+    return 0;
+  });
+
+  groceriesList.innerHTML = sortedGroceries.map(grocery => `
+    <div 
+      draggable="true"
+      data-grocery-id="${grocery.id}"
+      style="
+        display: flex;
+        align-items: center;
+        background-color: ${isDarkMode ? 'rgba(40, 40, 40, 0.95)' : 'white'};
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 12px;
+        border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
+        box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
+        cursor: move;
+        transition: all 0.2s ease;
+      "
+      onmouseover="this.style.transform='translateY(-2px)'" 
+      onmouseout="this.style.transform='translateY(0)'"
+      ondragstart="handleGroceryDragStart(event)"
+      ondragover="handleGroceryDragOver(event)"
+      ondrop="handleGroceryDrop(event)"
+      ondragend="handleGroceryDragEnd(event)">
       <button onclick="toggleGrocery('${grocery.id}')" style="
         width: 24px;
         height: 24px;
@@ -1830,13 +2393,13 @@ function renderGroceries() {
       <div style="flex: 1;">
         <div style="
           font-size: 16px;
-          color: ${grocery.completed ? '#999' : '#333'};
+          color: ${grocery.completed ? '#999' : (isDarkMode ? '#ffffff' : '#333')};
           text-decoration: ${grocery.completed ? 'line-through' : 'none'};
           margin-bottom: 2px;
         ">${grocery.text}</div>
         <div style="
           font-size: 12px;
-          color: ${grocery.completed ? '#999' : '#666'};
+          color: ${grocery.completed ? '#999' : (isDarkMode ? '#b3b3b3' : '#666')};
         ">Qty: ${grocery.quantity}</div>
       </div>
       
