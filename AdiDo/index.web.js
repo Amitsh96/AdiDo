@@ -31,165 +31,8 @@ let filterCategory = 'all';
 let showAddTodoModal = false;
 let showTagModal = false;
 let editingTodo = null; // Todo currently being edited
-let currentLanguage = 'en';
 
-// Translation object
-const translations = {
-  en: {
-    // Navigation
-    todo: '📝 Todo',
-    grocery: '🛒 Grocery',
-    events: '📅 Events',
-    profile: '👤 Profile',
-    
-    // Common
-    add: 'Add',
-    edit: 'Edit',
-    delete: 'Delete',
-    save: 'Save',
-    cancel: 'Cancel',
-    close: 'Close',
-    
-    // Todo page
-    addNewTodo: '✨ Add New Todo',
-    manageTags: 'Manage Tags',
-    filterCategory: 'All Categories',
-    todoText: 'Enter todo text...',
-    dueDate: 'Due Date',
-    category: 'Category',
-    priority: 'Priority',
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
-    personal: 'Personal',
-    work: 'Work',
-    urgent: 'Urgent',
-    
-    // Events
-    addEvent: '+ Add Event',
-    eventName: 'Event name...',
-    eventDescription: 'Event description...',
-    location: 'Location...',
-    date: 'Date',
-    time: 'Time',
-    editEvent: 'Edit Event',
-    
-    // Profile
-    darkMode: 'Dark Mode',
-    language: 'Language',
-    english: 'English',
-    hebrew: 'עברית',
-    signOut: 'Sign Out',
-    
-    // Tag Management
-    manageTags: 'Manage Tags',
-    defaultTags: 'Default Tags',
-    customTags: 'Custom Tags',
-    tagName: 'Tag name...',
-    addTag: 'Add Tag',
-    
-    // Messages
-    invalidDate: 'Invalid Date',
-    failedToUpdateEvent: 'Failed to update event',
-    pleaseEnterEventName: 'Please enter event name',
-    pleaseSelectDateTime: 'Please select date and time'
-  },
-  he: {
-    // Navigation  
-    todo: '📝 משימות',
-    grocery: '🛒 קניות',
-    events: '📅 אירועים',
-    profile: '👤 פרופיל',
-    
-    // Common
-    add: 'הוסף',
-    edit: 'ערוך',
-    delete: 'מחק',
-    save: 'שמור',
-    cancel: 'בטל',
-    close: 'סגור',
-    
-    // Todo page
-    addNewTodo: '✨ הוסף משימה חדשה',
-    manageTags: 'נהל תגיות',
-    filterCategory: 'כל הקטגוריות',
-    todoText: 'הכנס טקסט משימה...',
-    dueDate: 'תאריך יעד',
-    category: 'קטגוריה',
-    priority: 'עדיפות',
-    low: 'נמוך',
-    medium: 'בינוני',
-    high: 'גבוה',
-    personal: 'אישי',
-    work: 'עבודה',
-    urgent: 'דחוף',
-    
-    // Events
-    addEvent: '+ הוסף אירוע',
-    eventName: 'שם האירוע...',
-    eventDescription: 'תיאור האירוע...',
-    location: 'מיקום...',
-    date: 'תאריך',
-    time: 'שעה',
-    editEvent: 'ערוך אירוע',
-    
-    // Profile
-    darkMode: 'מצב כהה',
-    language: 'שפה',
-    english: 'English',
-    hebrew: 'עברית',
-    signOut: 'התנתק',
-    
-    // Tag Management
-    manageTags: 'נהל תגיות',
-    defaultTags: 'תגיות ברירת מחדל',
-    customTags: 'תגיות מותאמות',
-    tagName: 'שם התגית...',
-    addTag: 'הוסף תגית',
-    
-    // Messages
-    invalidDate: 'תאריך לא תקין',
-    failedToUpdateEvent: 'כשל בעדכון האירוע',
-    pleaseEnterEventName: 'אנא הכנס שם אירוע',
-    pleaseSelectDateTime: 'אנא בחר תאריך ושעה'
-  }
-};
 
-// Get translation function
-function t(key) {
-  return translations[currentLanguage][key] || translations.en[key] || key;
-}
-
-// Language management
-function getCurrentLanguage() {
-  try {
-    return localStorage.getItem('language') || 'en';
-  } catch (error) {
-    return 'en';
-  }
-}
-
-function setCurrentLanguage(lang) {
-  try {
-    localStorage.setItem('language', lang);
-    currentLanguage = lang;
-    // Update document direction for Hebrew
-    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
-    // Reload the current view
-    const activeTab = document.querySelector('.nav-tab.active');
-    if (activeTab) {
-      loadTabContent(activeTab.dataset.tab);
-    }
-  } catch (error) {
-    console.error('Error saving language:', error);
-  }
-}
-
-// Initialize language on app start
-function initializeLanguage() {
-  currentLanguage = getCurrentLanguage();
-  document.documentElement.dir = currentLanguage === 'he' ? 'rtl' : 'ltr';
-}
 
 // Create the main app HTML
 function createApp() {
@@ -1795,56 +1638,6 @@ function loadTabContent(tab) {
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
           ">${isDarkMode ? '☀️' : '🌙'}</button>
         </div>
-        
-        <!-- Language Toggle -->
-        <div style="
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 24px;
-          padding: 20px;
-          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
-          border-radius: 16px;
-          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
-        ">
-          <div>
-            <h4 style="
-              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
-              margin: 0 0 4px 0;
-              font-size: 16px;
-              font-weight: 600;
-            ">${t('language')}</h4>
-            <p style="
-              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-              margin: 0;
-              font-size: 14px;
-            ">Choose your preferred language</p>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button id="langEnBtn" style="
-              padding: 8px 12px;
-              background: ${currentLanguage === 'en' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? '#404040' : '#f1f5f9')};
-              color: ${currentLanguage === 'en' ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
-              border: none;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-            ">${t('english')}</button>
-            <button id="langHeBtn" style="
-              padding: 8px 12px;
-              background: ${currentLanguage === 'he' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? '#404040' : '#f1f5f9')};
-              color: ${currentLanguage === 'he' ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
-              border: none;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-            ">${t('hebrew')}</button>
-          </div>
-        </div>
       
         <button id="logoutBtn" style="
           width: 100%;
@@ -1879,15 +1672,6 @@ function loadTabContent(tab) {
       localStorage.setItem('darkMode', isDarkMode);
       updateThemeStyles();
       loadTabContent('profile'); // Refresh profile to show new theme
-    });
-    
-    // Setup language toggle event listeners
-    document.getElementById('langEnBtn').addEventListener('click', () => {
-      setCurrentLanguage('en');
-    });
-    
-    document.getElementById('langHeBtn').addEventListener('click', () => {
-      setCurrentLanguage('he');
     });
   }
 }
@@ -2264,7 +2048,7 @@ function openEditTodoModal(todo) {
   const editCategoryButtons = document.getElementById('editCategoryButtons');
   const allCategories = getAllCategories().filter(cat => cat !== 'all');
   editCategoryButtons.innerHTML = allCategories.map(category => `
-    <button class="edit-category-btn" data-category="${category}" style="
+    <button class="edit-category-btn ${todo.category === category ? 'selected' : ''}" data-category="${category}" style="
       padding: 8px 16px;
       border: none;
       border-radius: 20px;
@@ -2337,6 +2121,7 @@ function setupEditModalListeners() {
   // Priority button listeners
   document.querySelectorAll('.edit-priority-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      // Only clear other priority buttons, not category buttons
       document.querySelectorAll('.edit-priority-btn').forEach(b => {
         b.classList.remove('selected');
         b.style.background = isDarkMode ? '#404040' : '#f1f5f9';
@@ -3405,6 +3190,5 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Initialize the app
-initializeLanguage();
 createApp();
 
