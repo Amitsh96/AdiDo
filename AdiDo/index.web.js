@@ -2458,25 +2458,32 @@ function getFilteredTodos() {
     filteredTodos = todos.filter(todo => todo.category === filterCategory);
   }
   
-  // Sort by order first, then by priority and due date
+  // Sort by completion status first (completed at bottom), then by order, priority and due date
   return filteredTodos.sort((a, b) => {
-    // Primary sort by order
+    // Primary sort by completion status (incomplete tasks first)
+    if (a.completed !== b.completed) {
+      return a.completed - b.completed; // false (0) comes before true (1)
+    }
+    
+    // Secondary sort by order (for drag and drop positioning)
     const aOrder = a.order || 0;
     const bOrder = b.order || 0;
     if (aOrder !== bOrder) {
       return aOrder - bOrder;
     }
     
-    // Secondary sort by priority
-    const priorityOrder = { high: 3, medium: 2, low: 1 };
-    const aPriority = priorityOrder[a.priority] || 2;
-    const bPriority = priorityOrder[b.priority] || 2;
-    
-    if (aPriority !== bPriority) {
-      return bPriority - aPriority;
+    // Tertiary sort by priority (only for incomplete tasks)
+    if (!a.completed && !b.completed) {
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      const aPriority = priorityOrder[a.priority] || 2;
+      const bPriority = priorityOrder[b.priority] || 2;
+      
+      if (aPriority !== bPriority) {
+        return bPriority - aPriority;
+      }
     }
     
-    // Tertiary sort by due date
+    // Quaternary sort by due date
     if (a.dueDate && b.dueDate) {
       return new Date(a.dueDate.seconds * 1000) - new Date(b.dueDate.seconds * 1000);
     }
@@ -2876,13 +2883,20 @@ function renderGroceries() {
   const groceriesList = document.getElementById('groceriesList');
   if (!groceriesList) return;
   
-  // Sort groceries by order, then by creation date
+  // Sort groceries by completion status first (completed at bottom), then by order
   const sortedGroceries = groceries.sort((a, b) => {
+    // Primary sort by completion status (incomplete items first)
+    if (a.completed !== b.completed) {
+      return a.completed - b.completed; // false (0) comes before true (1)
+    }
+    
+    // Secondary sort by order (for drag and drop positioning)
     const aOrder = a.order || 0;
     const bOrder = b.order || 0;
     if (aOrder !== bOrder) {
       return aOrder - bOrder;
     }
+    
     return 0;
   });
 
