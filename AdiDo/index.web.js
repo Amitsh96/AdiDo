@@ -1076,6 +1076,7 @@ function setupRealtimeListeners() {
   if (groupsUnsubscribe) groupsUnsubscribe();
   
   const currentGroup = getCurrentGroup();
+  console.log('Setting up realtime listeners for group:', currentGroup);
   
   // Set up queries based on group type
   let todosQuery, groceriesQuery, eventsQuery, tagsQuery;
@@ -1121,6 +1122,7 @@ function setupRealtimeListeners() {
   
   // Set up listeners
   todosUnsubscribe = onSnapshot(todosQuery, (snapshot) => {
+    console.log(`[TODOS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}:`, snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})));
     let filteredDocs = snapshot.docs;
     
     // For personal view, filter out items with groupId
@@ -1143,6 +1145,7 @@ function setupRealtimeListeners() {
         // In groups, show public todos and user's own private todos
         return !todo.isPrivate || todo.userId === currentUser.uid;
       });
+    console.log(`[TODOS] Final filtered todos for group ${currentGroup.id}:`, todos);
     renderTodos();
   });
   
@@ -4210,6 +4213,7 @@ async function saveTodo() {
         todoData.dueDate = new Date(dueDate);
       }
       
+      console.log('Saving todo with data:', todoData);
       await addDoc(collection(db, 'todos'), todoData);
       
       // Reset form and close modal
