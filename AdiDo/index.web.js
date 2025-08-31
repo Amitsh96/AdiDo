@@ -1011,7 +1011,7 @@ function openJoinGroupModal() {
         joinedAt: new Date().toISOString()
       }];
       
-      await updateDoc(doc(db, 'Groups', currentGroup.id), {
+      await updateDoc(doc(db, 'Groups', currentGroupId), {
         members: updatedMembers
       });
       
@@ -1023,7 +1023,7 @@ function openJoinGroupModal() {
       groups.push(newGroup);
       
       // Switch to the new group
-      switchToGroup(currentGroup.id);
+      switchToGroup(currentGroupId);
       
       // Close modal
       document.body.removeChild(modalOverlay);
@@ -1075,13 +1075,13 @@ function setupRealtimeListeners() {
   if (tagsUnsubscribe) tagsUnsubscribe();
   if (groupsUnsubscribe) groupsUnsubscribe();
   
-  const currentGroup = getCurrentGroup();
-  console.log('Setting up realtime listeners for group:', currentGroup);
+  // Use currentGroupId directly instead of getCurrentGroup() which might fallback incorrectly
+  console.log('Setting up realtime listeners for group ID:', currentGroupId);
   
   // Set up queries based on group type
   let todosQuery, groceriesQuery, eventsQuery, tagsQuery;
   
-  if (currentGroup.id === 'personal') {
+  if (currentGroupId === 'personal') {
     // Personal lists - filter by userId and no groupId (or null groupId)
     todosQuery = query(
       collection(db, 'todos'), 
@@ -1107,25 +1107,25 @@ function setupRealtimeListeners() {
     // Group lists - filter by groupId
     todosQuery = query(
       collection(db, 'todos'), 
-      where('groupId', '==', currentGroup.id)
+      where('groupId', '==', currentGroupId)
     );
     groceriesQuery = query(
       collection(db, 'groceries'), 
-      where('groupId', '==', currentGroup.id)
+      where('groupId', '==', currentGroupId)
     );
     eventsQuery = query(
       collection(db, 'events'), 
-      where('groupId', '==', currentGroup.id)
+      where('groupId', '==', currentGroupId)
     );
     tagsQuery = query(
       collection(db, 'tags'), 
-      where('groupId', '==', currentGroup.id)
+      where('groupId', '==', currentGroupId)
     );
   }
   
   // Set up listeners
   todosUnsubscribe = onSnapshot(todosQuery, (snapshot) => {
-    console.log(`[TODOS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}:`, snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})));
+    console.log(`[TODOS] Received ${snapshot.docs.length} docs for group ${currentGroupId}:`, snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})));
     
     todos = snapshot.docs
       .map(doc => ({
@@ -1134,17 +1134,17 @@ function setupRealtimeListeners() {
       }))
       .filter(todo => {
         // Show all todos in personal space
-        if (currentGroup.id === 'personal') return true;
+        if (currentGroupId === 'personal') return true;
         
         // In groups, show public todos and user's own private todos
         return !todo.isPrivate || todo.userId === currentUser.uid;
       });
-    console.log(`[TODOS] Final filtered todos for group ${currentGroup.id}:`, todos);
+    console.log(`[TODOS] Final filtered todos for group ${currentGroupId}:`, todos);
     renderTodos();
   });
   
   groceriesUnsubscribe = onSnapshot(groceriesQuery, (snapshot) => {
-    console.log(`[GROCERIES] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
+    console.log(`[GROCERIES] Received ${snapshot.docs.length} docs for group ${currentGroupId}`);
     
     groceries = snapshot.docs
       .map(doc => ({
@@ -1153,7 +1153,7 @@ function setupRealtimeListeners() {
       }))
       .filter(grocery => {
         // Show all groceries in personal space
-        if (currentGroup.id === 'personal') return true;
+        if (currentGroupId === 'personal') return true;
         
         // In groups, show public groceries and user's own private groceries
         return !grocery.isPrivate || grocery.userId === currentUser.uid;
@@ -1162,7 +1162,7 @@ function setupRealtimeListeners() {
   });
   
   eventsUnsubscribe = onSnapshot(eventsQuery, (snapshot) => {
-    console.log(`[EVENTS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
+    console.log(`[EVENTS] Received ${snapshot.docs.length} docs for group ${currentGroupId}`);
     
     events = snapshot.docs
       .map(doc => ({
@@ -1171,7 +1171,7 @@ function setupRealtimeListeners() {
       }))
       .filter(event => {
         // Show all events in personal space
-        if (currentGroup.id === 'personal') return true;
+        if (currentGroupId === 'personal') return true;
         
         // In groups, show public events and user's own private events
         return !event.isPrivate || event.userId === currentUser.uid;
@@ -1180,7 +1180,7 @@ function setupRealtimeListeners() {
   });
   
   tagsUnsubscribe = onSnapshot(tagsQuery, (snapshot) => {
-    console.log(`[TAGS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
+    console.log(`[TAGS] Received ${snapshot.docs.length} docs for group ${currentGroupId}`);
     
     tags = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -1212,6 +1212,12 @@ function setupRealtimeListeners() {
     if (groupsChanged) {
       console.log('Groups updated in real-time:', updatedGroups);
       groups = updatedGroups;
+      
+      // Refresh UI with correct group context now that groups are loaded
+      const activeTab = document.querySelector('.nav-tab.active');
+      if (activeTab) {
+        loadTabContent(activeTab.dataset.tab);
+      }
       
       // Check if current group still exists and user is still a member
       if (currentGroupId !== 'personal') {
@@ -4172,8 +4178,8 @@ async function saveTodo() {
         text: text,
         completed: false,
         userId: currentUser.uid,
-        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
-        isPrivate: isPrivate && currentGroup.id !== 'personal', // Only allow private items in groups
+        groupId: currentGroupId === 'personal' ? null : currentGroupId,
+        isPrivate: isPrivate && currentGroupId !== 'personal', // Only allow private items in groups
         category: category,
         priority: priority,
         createdAt: serverTimestamp()
@@ -4423,7 +4429,7 @@ function setupTagModalListeners() {
             name: tagName,
             color: selectedColor,
             userId: currentUser.uid,
-            groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
+            groupId: currentGroupId === 'personal' ? null : currentGroupId,
             createdAt: serverTimestamp()
           });
           
@@ -5062,8 +5068,8 @@ async function addGrocery() {
         quantity: quantity,
         completed: false,
         userId: currentUser.uid,
-        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
-        isPrivate: isPrivate && currentGroup.id !== 'personal',
+        groupId: currentGroupId === 'personal' ? null : currentGroupId,
+        isPrivate: isPrivate && currentGroupId !== 'personal',
         createdAt: serverTimestamp()
       });
       textInput.value = '';
@@ -5098,7 +5104,7 @@ async function addEvent() {
         location: location || '',
         datetime: eventDateTime,
         userId: currentUser.uid,
-        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
+        groupId: currentGroupId === 'personal' ? null : currentGroupId,
         createdAt: serverTimestamp()
       });
       
@@ -5559,8 +5565,8 @@ window.deleteEvent = async (id) => {
 };
 
 // Initialize theme from localStorage
-if (localStorage.getItem('isDarkMode')) {
-  isDarkMode = JSON.parse(localStorage.getItem('isDarkMode'));
+if (localStorage.getItem('darkMode')) {
+  isDarkMode = JSON.parse(localStorage.getItem('darkMode'));
 }
 
 // Auth state listener
@@ -5569,10 +5575,23 @@ onAuthStateChanged(auth, async (user) => {
   
   if (user) {
     console.log('User signed in:', user.email);
+    
+    // Restore saved group context from localStorage
+    const savedGroupId = localStorage.getItem('currentGroupId');
+    if (savedGroupId) {
+      currentGroupId = savedGroupId;
+      console.log('Restored group context:', currentGroupId);
+    } else {
+      console.log('No saved group found, using default:', currentGroupId);
+    }
+    
     showMainScreen();
     
     // Set up real-time listeners with group context (includes groups listener)
     setupRealtimeListeners();
+    
+    // Apply group theme immediately
+    applyGroupTheme();
     
   } else {
     console.log('User signed out');

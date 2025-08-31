@@ -1,5 +1,5 @@
 // Service Worker for AdiDo PWA
-const CACHE_NAME = 'adido-v1.1.0';
+const CACHE_NAME = 'adido-v3.0.0';
 const urlsToCache = [
   '/',
   '/index.html',
