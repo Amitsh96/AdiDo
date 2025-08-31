@@ -1082,23 +1082,26 @@ function setupRealtimeListeners() {
   let todosQuery, groceriesQuery, eventsQuery, tagsQuery;
   
   if (currentGroup.id === 'personal') {
-    // Personal lists - filter by userId only (for backward compatibility)
-    // Personal items have either no groupId field or groupId = null
+    // Personal lists - filter by userId and no groupId (or null groupId)
     todosQuery = query(
       collection(db, 'todos'), 
-      where('userId', '==', currentUser.uid)
+      where('userId', '==', currentUser.uid),
+      where('groupId', '==', null)
     );
     groceriesQuery = query(
       collection(db, 'groceries'), 
-      where('userId', '==', currentUser.uid)
+      where('userId', '==', currentUser.uid),
+      where('groupId', '==', null)
     );
     eventsQuery = query(
       collection(db, 'events'), 
-      where('userId', '==', currentUser.uid)
+      where('userId', '==', currentUser.uid),
+      where('groupId', '==', null)
     );
     tagsQuery = query(
       collection(db, 'tags'), 
-      where('userId', '==', currentUser.uid)
+      where('userId', '==', currentUser.uid),
+      where('groupId', '==', null)
     );
   } else {
     // Group lists - filter by groupId
@@ -1123,17 +1126,8 @@ function setupRealtimeListeners() {
   // Set up listeners
   todosUnsubscribe = onSnapshot(todosQuery, (snapshot) => {
     console.log(`[TODOS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}:`, snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})));
-    let filteredDocs = snapshot.docs;
     
-    // For personal view, filter out items with groupId
-    if (currentGroup.id === 'personal') {
-      filteredDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return !data.groupId || data.groupId === null;
-      });
-    }
-    
-    todos = filteredDocs
+    todos = snapshot.docs
       .map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -1150,17 +1144,9 @@ function setupRealtimeListeners() {
   });
   
   groceriesUnsubscribe = onSnapshot(groceriesQuery, (snapshot) => {
-    let filteredDocs = snapshot.docs;
+    console.log(`[GROCERIES] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
     
-    // For personal view, filter out items with groupId
-    if (currentGroup.id === 'personal') {
-      filteredDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return !data.groupId || data.groupId === null;
-      });
-    }
-    
-    groceries = filteredDocs
+    groceries = snapshot.docs
       .map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -1176,17 +1162,9 @@ function setupRealtimeListeners() {
   });
   
   eventsUnsubscribe = onSnapshot(eventsQuery, (snapshot) => {
-    let filteredDocs = snapshot.docs;
+    console.log(`[EVENTS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
     
-    // For personal view, filter out items with groupId
-    if (currentGroup.id === 'personal') {
-      filteredDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return !data.groupId || data.groupId === null;
-      });
-    }
-    
-    events = filteredDocs
+    events = snapshot.docs
       .map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -1202,17 +1180,9 @@ function setupRealtimeListeners() {
   });
   
   tagsUnsubscribe = onSnapshot(tagsQuery, (snapshot) => {
-    let filteredDocs = snapshot.docs;
+    console.log(`[TAGS] Received ${snapshot.docs.length} docs for group ${currentGroup.id}`);
     
-    // For personal view, filter out items with groupId
-    if (currentGroup.id === 'personal') {
-      filteredDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return !data.groupId || data.groupId === null;
-      });
-    }
-    
-    tags = filteredDocs.map(doc => ({
+    tags = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
