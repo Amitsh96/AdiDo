@@ -26,11 +26,120 @@ let todos = [];
 let groceries = [];
 let events = [];
 let tags = [];
+let groups = [];
+let currentGroupId = 'personal';
 let isDarkMode = false;
 let filterCategory = 'all';
 let showAddTodoModal = false;
 let showTagModal = false;
 let editingTodo = null; // Todo currently being edited
+
+// Group management functions
+function getCurrentGroup() {
+  return groups.find(group => group.id === currentGroupId) || { 
+    id: 'personal', 
+    name: 'Personal', 
+    emoji: '👤',
+    type: 'personal',
+    members: [{userId: currentUser?.uid, role: 'owner', name: currentUser?.email}]
+  };
+}
+
+function switchToGroup(groupId) {
+  currentGroupId = groupId;
+  localStorage.setItem('currentGroupId', groupId);
+  
+  // Refresh current tab to show new group's data
+  const activeTab = document.querySelector('.nav-tab.active');
+  if (activeTab) {
+    loadTabContent(activeTab.dataset.tab);
+  }
+}
+
+function getGroupDisplayName(group) {
+  if (!group) return 'Personal';
+  return `${group.emoji || '👥'} ${group.name}`;
+}
+
+// Group switching UI functions
+function openGroupSwitcher() {
+  renderGroupsList();
+  document.getElementById('groupSwitcherModal').style.display = 'flex';
+}
+
+function closeGroupSwitcher() {
+  document.getElementById('groupSwitcherModal').style.display = 'none';
+}
+
+function renderGroupsList() {
+  const groupsList = document.getElementById('groupsList');
+  if (!groupsList) return;
+  
+  // Always include personal space
+  const allGroups = [
+    { 
+      id: 'personal', 
+      name: 'Personal', 
+      emoji: '👤',
+      type: 'personal',
+      members: [{userId: currentUser?.uid, role: 'owner', name: currentUser?.email}]
+    },
+    ...groups
+  ];
+  
+  groupsList.innerHTML = allGroups.map(group => {
+    const isActive = group.id === currentGroupId;
+    const memberCount = group.members?.length || 0;
+    const memberText = memberCount === 1 ? '1 member' : `${memberCount} members`;
+    
+    return `
+      <div onclick="selectGroup('${group.id}')" style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        background: ${isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)')};
+        color: ${isActive ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: ${isActive ? '2px solid rgba(255,255,255,0.3)' : '1px solid ' + (isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)')};
+      " onmouseover="if (!${isActive}) this.style.background='${isDarkMode ? 'rgba(50, 50, 50, 0.7)' : 'rgba(240, 245, 251, 1)'}'"
+         onmouseout="if (!${isActive}) this.style.background='${isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)'}'">
+        <div style="display: flex; align-items: center;">
+          <span style="font-size: 24px; margin-right: 12px;">${group.emoji || '👥'}</span>
+          <div>
+            <div style="font-weight: 600; font-size: 16px;">${group.name}</div>
+            <div style="font-size: 12px; opacity: 0.7;">${memberText}</div>
+          </div>
+        </div>
+        ${isActive ? '<span style="font-size: 16px;">✓</span>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function selectGroup(groupId) {
+  if (groupId !== currentGroupId) {
+    switchToGroup(groupId);
+  }
+  closeGroupSwitcher();
+}
+
+// Placeholder functions for group creation/joining
+function openCreateGroupModal() {
+  closeGroupSwitcher();
+  alert('Group creation feature coming soon!');
+}
+
+function openJoinGroupModal() {
+  closeGroupSwitcher();  
+  alert('Join group feature coming soon!');
+}
+
+// Make functions available globally
+window.closeGroupSwitcher = closeGroupSwitcher;
+window.selectGroup = selectGroup;
 
 
 
@@ -1601,6 +1710,131 @@ function loadTabContent(tab) {
           ">Shared with your partner</p>
         </div>
         
+        <!-- Active Group Display -->
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          padding: 20px;
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
+          border-radius: 16px;
+          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+        ">
+          <div>
+            <h4 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0 0 4px 0;
+              font-size: 16px;
+              font-weight: 600;
+            ">Active Group</h4>
+            <p style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              margin: 0;
+              font-size: 14px;
+            ">${getGroupDisplayName(getCurrentGroup())}</p>
+          </div>
+          <button id="switchGroupBtn" style="
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+          ">Switch Group</button>
+        </div>
+        
+        <!-- Group Switcher Modal -->
+        <div id="groupSwitcherModal" style="
+          display: none;
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 1000;
+          justify-content: center;
+          align-items: center;
+        ">
+          <div style="
+            background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+          ">
+            <h3 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0 0 24px 0;
+              font-size: 24px;
+              font-weight: 700;
+              text-align: center;
+            ">Switch Group</h3>
+            
+            <div id="groupsList" style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              margin-bottom: 24px;
+            "></div>
+            
+            <div style="
+              display: flex;
+              gap: 12px;
+              justify-content: center;
+            ">
+              <button id="createGroupBtn" style="
+                flex: 1;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+              ">+ Create Group</button>
+              
+              <button id="joinGroupBtn" style="
+                flex: 1;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+              ">📧 Join Group</button>
+            </div>
+            
+            <button onclick="closeGroupSwitcher()" style="
+              width: 100%;
+              padding: 12px;
+              background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              border: none;
+              border-radius: 12px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              margin-top: 12px;
+            ">Cancel</button>
+          </div>
+        </div>
+        
         <!-- Dark Mode Toggle -->
         <div style="
           display: flex;
@@ -1673,6 +1907,11 @@ function loadTabContent(tab) {
       updateThemeStyles();
       loadTabContent('profile'); // Refresh profile to show new theme
     });
+    
+    // Setup group switching event listeners
+    document.getElementById('switchGroupBtn').addEventListener('click', openGroupSwitcher);
+    document.getElementById('createGroupBtn').addEventListener('click', openCreateGroupModal);
+    document.getElementById('joinGroupBtn').addEventListener('click', openJoinGroupModal);
   }
 }
 
@@ -3204,5 +3443,15 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Initialize the app
-createApp();
+function initializeAppState() {
+  // Initialize currentGroupId from localStorage
+  const savedGroupId = localStorage.getItem('currentGroupId');
+  if (savedGroupId) {
+    currentGroupId = savedGroupId;
+  }
+  
+  createApp();
+}
+
+initializeAppState();
 
