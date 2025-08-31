@@ -7,4 +7,29 @@
         #root {
             flex-shrink: 0;
             background-color: #ffffff;
-        }</style><script defer="defer" src="./bundle.73b46843d9da86b8fc42.d66b21a1e8641785abdf.js"></script></head><body><div id="root"></div></body></html>
+        }</style><script defer="defer" src="./bundle.ffe5ddc6c36a2e0ab9a7.9fb21493d2a43e5c0a1f.js"></script></head><body><div id="root"></div><script>// Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('SW registered: ', registration);
+                        
+                        // Handle service worker updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New update available
+                                    if (confirm('New version available! Reload to update?')) {
+                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(registration => {
+                        console.log('SW registration failed: ', registration);
+                    });
+            });
+        }</script></body></html>

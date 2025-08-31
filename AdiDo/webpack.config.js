@@ -55,7 +55,8 @@ module.exports = (env, argv) => {
     new CopyWebpackPlugin({
       patterns: [
         { from: 'web/favicon.svg', to: 'favicon.svg' },
-        { from: 'web/manifest.json', to: 'manifest.json' }
+        { from: 'web/manifest.json', to: 'manifest.json' },
+        { from: 'web/sw.js', to: 'sw.js' }
       ]
     }),
     new webpack.ProvidePlugin({
