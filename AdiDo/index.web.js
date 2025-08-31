@@ -49,6 +49,12 @@ function switchToGroup(groupId) {
   currentGroupId = groupId;
   localStorage.setItem('currentGroupId', groupId);
   
+  // Apply group-specific theme
+  applyGroupTheme();
+  
+  // Refresh real-time listeners for new group
+  setupRealtimeListeners();
+  
   // Refresh current tab to show new group's data
   const activeTab = document.querySelector('.nav-tab.active');
   if (activeTab) {
@@ -92,8 +98,60 @@ function renderGroupsList() {
     const memberCount = group.members?.length || 0;
     const memberText = memberCount === 1 ? '1 member' : `${memberCount} members`;
     
+    // Check if user can invite to this group (owner or admin)
+    const userMember = group.members?.find(member => member.userId === currentUser?.uid);
+    const canInvite = group.id !== 'personal' && userMember && (userMember.role === 'owner' || userMember.role === 'admin');
+    
+    // Get activity information
+    const activity = getGroupActivity(group.id);
+    
+    // Generate member avatars (show up to 4, then +X more)
+    const membersToShow = group.members?.slice(0, 4) || [];
+    const remainingCount = Math.max(0, memberCount - 4);
+    
+    const memberAvatars = group.id === 'personal' ? '' : membersToShow.map(member => {
+      const avatarText = getUserAvatar(member);
+      const avatarColor = getAvatarColor(member.userId);
+      const isCurrentUser = member.userId === currentUser?.uid;
+      
+      return `
+        <div style="
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: ${avatarColor}20;
+          border: 2px solid ${avatarColor};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: 600;
+          color: ${avatarColor};
+          margin-left: -4px;
+          position: relative;
+          z-index: ${isCurrentUser ? '10' : '1'};
+          ${isCurrentUser ? `box-shadow: 0 0 0 2px ${isActive ? 'rgba(255,255,255,0.5)' : avatarColor + '40'};` : ''}
+        " title="${member.name || member.email}${isCurrentUser ? ' (You)' : ''}">${avatarText}</div>
+      `;
+    }).join('') + (remainingCount > 0 ? `
+      <div style="
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: ${isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(148, 163, 184, 0.2)'};
+        border: 2px solid ${isDarkMode ? '#64748b' : '#94a3b8'};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 600;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        margin-left: -4px;
+      ">+${remainingCount}</div>
+    ` : '');
+    
     return `
-      <div onclick="selectGroup('${group.id}')" style="
+      <div style="
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -101,19 +159,131 @@ function renderGroupsList() {
         background: ${isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : (isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)')};
         color: ${isActive ? 'white' : (isDarkMode ? '#e2e8f0' : '#1a202c')};
         border-radius: 12px;
-        cursor: pointer;
         transition: all 0.2s;
         border: ${isActive ? '2px solid rgba(255,255,255,0.3)' : '1px solid ' + (isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)')};
-      " onmouseover="if (!${isActive}) this.style.background='${isDarkMode ? 'rgba(50, 50, 50, 0.7)' : 'rgba(240, 245, 251, 1)'}'"
-         onmouseout="if (!${isActive}) this.style.background='${isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)'}'">
-        <div style="display: flex; align-items: center;">
-          <span style="font-size: 24px; margin-right: 12px;">${group.emoji || '👥'}</span>
-          <div>
-            <div style="font-weight: 600; font-size: 16px;">${group.name}</div>
-            <div style="font-size: 12px; opacity: 0.7;">${memberText}</div>
+        margin-bottom: 8px;
+        position: relative;
+        overflow: hidden;
+      ">
+        <div onclick="selectGroup('${group.id}')" style="
+          display: flex;
+          align-items: center;
+          flex: 1;
+          cursor: pointer;
+        " onmouseover="if (!${isActive}) this.parentElement.style.background='${isDarkMode ? 'rgba(50, 50, 50, 0.7)' : 'rgba(240, 245, 251, 1)'}'"
+           onmouseout="if (!${isActive}) this.parentElement.style.background='${isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)'}'">
+          <div style="
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: ${isActive ? 'rgba(255,255,255,0.15)' : (group.id === 'personal' ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, #10b981 0%, #34d399 100)')};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 20px;
+            position: relative;
+          ">
+            ${group.emoji || '👥'}
+            ${group.id !== 'personal' && activity?.hasRecentActivity ? `
+              <div style="
+                position: absolute;
+                top: -2px;
+                right: -2px;
+                width: 12px;
+                height: 12px;
+                background: ${activity.hasVeryRecentActivity ? '#10b981' : '#f59e0b'};
+                border-radius: 50%;
+                border: 2px solid ${isActive ? 'rgba(255,255,255,0.9)' : 'white'};
+                animation: ${activity.hasVeryRecentActivity ? 'pulse 2s infinite' : 'none'};
+              " title="Recent activity: ${getRelativeTime(activity.lastActivityTime)}"></div>
+              <style>
+                @keyframes pulse {
+                  0%, 100% { transform: scale(1); opacity: 1; }
+                  50% { transform: scale(1.1); opacity: 0.7; }
+                }
+              </style>
+            ` : ''}
+          </div>
+          <div style="flex: 1;">
+            <div style="
+              font-weight: 600; 
+              font-size: 16px;
+              margin-bottom: 4px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            ">
+              ${group.name}
+              ${group.id !== 'personal' && userMember?.role === 'owner' ? '<span style="font-size: 12px;">👑</span>' : ''}
+              ${group.id !== 'personal' && userMember?.role === 'admin' ? '<span style="font-size: 12px;">⭐</span>' : ''}
+            </div>
+            <div style="
+              font-size: 12px; 
+              opacity: 0.7;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            ">
+              <span>${memberText}</span>
+              ${activity?.hasRecentActivity ? `
+                <span style="
+                  font-size: 11px;
+                  color: ${activity.hasVeryRecentActivity ? '#10b981' : '#f59e0b'};
+                  font-weight: 500;
+                ">• Active ${getRelativeTime(activity.lastActivityTime)}</span>
+              ` : ''}
+              ${group.id !== 'personal' && memberAvatars ? `
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  margin-left: 4px;
+                ">${memberAvatars}</div>
+              ` : ''}
+            </div>
           </div>
         </div>
-        ${isActive ? '<span style="font-size: 16px;">✓</span>' : ''}
+        
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${canInvite ? `
+            <button onclick="event.stopPropagation(); showInviteCode('${group.id}', '${group.inviteCode || ''}')" style="
+              padding: 6px 12px;
+              background: ${isActive ? 'rgba(255,255,255,0.2)' : 'rgba(102, 126, 234, 0.1)'};
+              color: ${isActive ? 'white' : '#667eea'};
+              border: 1px solid ${isActive ? 'rgba(255,255,255,0.3)' : '#667eea'};
+              border-radius: 6px;
+              font-size: 11px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              margin-right: 4px;
+            " title="Share invite code">📤</button>
+            <button onclick="event.stopPropagation(); showMemberManagement('${group.id}')" style="
+              padding: 6px 12px;
+              background: ${isActive ? 'rgba(255,255,255,0.2)' : 'rgba(239, 68, 68, 0.1)'};
+              color: ${isActive ? 'white' : '#ef4444'};
+              border: 1px solid ${isActive ? 'rgba(255,255,255,0.3)' : '#ef4444'};
+              border-radius: 6px;
+              font-size: 11px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+            " title="Manage members">👥</button>
+          ` : ''}
+          ${isActive ? '<span style="font-size: 16px; margin-left: 8px;">✓</span>' : ''}
+        </div>
+        
+        ${isActive ? `
+          <div style="
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: rgba(255,255,255,0.6);
+            border-radius: 2px 0 0 2px;
+          "></div>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -126,20 +296,2017 @@ function selectGroup(groupId) {
   closeGroupSwitcher();
 }
 
-// Placeholder functions for group creation/joining
+// Group creation functionality
 function openCreateGroupModal() {
   closeGroupSwitcher();
-  alert('Group creation feature coming soon!');
+  
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? '#1e293b' : '#ffffff'};
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Create New Group</h2>
+      <button id="closeCreateModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: ${isDarkMode ? '#334155' : '#f1f5f9'};
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        font-size: 18px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <form id="createGroupForm">
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Group Name *</label>
+        <input type="text" id="groupName" required maxlength="50" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          outline: none;
+          box-sizing: border-box;
+          transition: all 0.2s;
+        " placeholder="Enter group name">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Group Type *</label>
+        <select id="groupType" required style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          outline: none;
+          box-sizing: border-box;
+          cursor: pointer;
+        ">
+          <option value="">Select group type</option>
+          <option value="family">👨‍👩‍👧‍👦 Family Group</option>
+          <option value="couple">💑 Couple</option>
+          <option value="friends">👥 Friends</option>
+          <option value="household">🏠 Household</option>
+          <option value="work">💼 Work Team</option>
+          <option value="roommates">🏨 Roommates</option>
+          <option value="travel">✈️ Travel Group</option>
+          <option value="study">📚 Study Group</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Group Icon</label>
+        <div id="emojiSelector" style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+          gap: 8px;
+          padding: 16px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          max-height: 120px;
+          overflow-y: auto;
+        ">
+          <button type="button" class="emoji-btn selected" data-emoji="👨‍👩‍👧‍👦" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid #667eea;
+            background-color: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">👨‍👩‍👧‍👦</button>
+          <button type="button" class="emoji-btn" data-emoji="💑" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">💑</button>
+          <button type="button" class="emoji-btn" data-emoji="👥" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">👥</button>
+          <button type="button" class="emoji-btn" data-emoji="🏠" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">🏠</button>
+          <button type="button" class="emoji-btn" data-emoji="💼" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">💼</button>
+          <button type="button" class="emoji-btn" data-emoji="🎯" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">🎯</button>
+          <button type="button" class="emoji-btn" data-emoji="⭐" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">⭐</button>
+          <button type="button" class="emoji-btn" data-emoji="🌟" style="
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            background-color: ${isDarkMode ? '#475569' : '#e2e8f0'};
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+          ">🌟</button>
+        </div>
+        <input type="hidden" id="selectedEmoji" value="👨‍👩‍👧‍👦">
+      </div>
+      
+      <div style="margin-bottom: 24px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Description (Optional)</label>
+        <textarea id="groupDescription" maxlength="200" rows="3" style="
+          width: 100%;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 12px 16px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          outline: none;
+          box-sizing: border-box;
+          resize: vertical;
+          font-family: inherit;
+          transition: all 0.2s;
+        " placeholder="Describe your group (optional)"></textarea>
+      </div>
+      
+      <div style="
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      ">
+        <button type="button" id="cancelCreateGroup" style="
+          padding: 12px 24px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          background-color: transparent;
+          color: ${isDarkMode ? '#cbd5e1' : '#64748b'};
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">Cancel</button>
+        <button type="submit" id="createGroupSubmit" style="
+          padding: 12px 24px;
+          border: none;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-width: 120px;
+        ">Create Group</button>
+      </div>
+    </form>
+  `;
+  
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+  
+  // Auto-update emoji based on group type selection
+  const groupTypeSelect = document.getElementById('groupType');
+  const selectedEmojiInput = document.getElementById('selectedEmoji');
+  
+  groupTypeSelect.addEventListener('change', function() {
+    const typeEmojiMap = {
+      'family': '👨‍👩‍👧‍👦',
+      'couple': '💑',
+      'friends': '👥',
+      'household': '🏠',
+      'work': '💼',
+      'roommates': '🏨',
+      'travel': '✈️',
+      'study': '📚'
+    };
+    
+    const newEmoji = typeEmojiMap[this.value];
+    if (newEmoji) {
+      // Update selected emoji
+      selectedEmojiInput.value = newEmoji;
+      
+      // Update emoji button selection
+      document.querySelectorAll('.emoji-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.style.border = '2px solid transparent';
+        btn.style.backgroundColor = isDarkMode ? '#475569' : '#e2e8f0';
+      });
+      
+      const targetBtn = document.querySelector(`[data-emoji="${newEmoji}"]`);
+      if (targetBtn) {
+        targetBtn.classList.add('selected');
+        targetBtn.style.border = '2px solid #667eea';
+        targetBtn.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+      }
+    }
+  });
+  
+  // Handle emoji selection
+  document.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      // Remove selection from all buttons
+      document.querySelectorAll('.emoji-btn').forEach(b => {
+        b.classList.remove('selected');
+        b.style.border = '2px solid transparent';
+        b.style.backgroundColor = isDarkMode ? '#475569' : '#e2e8f0';
+      });
+      
+      // Select this button
+      this.classList.add('selected');
+      this.style.border = '2px solid #667eea';
+      this.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+      selectedEmojiInput.value = this.dataset.emoji;
+    });
+  });
+  
+  // Handle form submission
+  document.getElementById('createGroupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('createGroupSubmit');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Creating...';
+    submitBtn.disabled = true;
+    
+    try {
+      const groupData = {
+        name: document.getElementById('groupName').value.trim(),
+        type: document.getElementById('groupType').value,
+        emoji: document.getElementById('selectedEmoji').value,
+        description: document.getElementById('groupDescription').value.trim(),
+        inviteCode: generateInviteCode(),
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser.uid,
+        members: [{
+          userId: currentUser.uid,
+          email: currentUser.email,
+          name: currentUser.displayName || currentUser.email,
+          role: 'owner',
+          joinedAt: new Date().toISOString()
+        }]
+      };
+      
+      // Add group to Firestore
+      const docRef = await addDoc(collection(db, 'Groups'), groupData);
+      const newGroupId = docRef.id;
+      
+      // Add to local groups array
+      const newGroup = {
+        id: newGroupId,
+        ...groupData
+      };
+      groups.push(newGroup);
+      
+      // Switch to the new group
+      switchToGroup(newGroupId);
+      
+      // Close modal
+      document.body.removeChild(modalOverlay);
+      
+      // Show success message
+      showSuccessMessage(`Group "${groupData.name}" created successfully!`);
+      
+    } catch (error) {
+      console.error('Error creating group:', error);
+      alert('Error creating group. Please try again.');
+      submitBtn.textContent = originalText;
+      submitBtn.disabled = false;
+    }
+  });
+  
+  // Handle close events
+  function closeModal() {
+    document.body.removeChild(modalOverlay);
+  }
+  
+  document.getElementById('closeCreateModal').addEventListener('click', closeModal);
+  document.getElementById('cancelCreateGroup').addEventListener('click', closeModal);
+  
+  // Close on overlay click
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+  
+  // Focus the group name input
+  setTimeout(() => {
+    document.getElementById('groupName').focus();
+  }, 100);
 }
 
 function openJoinGroupModal() {
-  closeGroupSwitcher();  
-  alert('Join group feature coming soon!');
+  closeGroupSwitcher();
+  
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? '#1e293b' : '#ffffff'};
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Join Group</h2>
+      <button id="closeJoinModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: ${isDarkMode ? '#334155' : '#f1f5f9'};
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        font-size: 18px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <div style="
+      text-align: center;
+      margin-bottom: 32px;
+      padding: 24px;
+      background: ${isDarkMode ? '#334155' : '#f8fafc'};
+      border-radius: 16px;
+      border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+    ">
+      <div style="
+        font-size: 48px;
+        margin-bottom: 16px;
+      ">🎫</div>
+      <h3 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        font-weight: 600;
+      ">Enter Invitation Code</h3>
+      <p style="
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+      ">Ask a group member to share their invitation code with you</p>
+    </div>
+    
+    <form id="joinGroupForm">
+      <div style="margin-bottom: 24px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Invitation Code *</label>
+        <input type="text" id="inviteCode" required maxlength="20" style="
+          width: 100%;
+          height: 56px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 20px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 18px;
+          font-weight: 600;
+          letter-spacing: 2px;
+          text-align: center;
+          text-transform: uppercase;
+          outline: none;
+          box-sizing: border-box;
+          transition: all 0.2s;
+        " placeholder="ENTER-CODE">
+        <div id="codeError" style="
+          color: #ef4444;
+          font-size: 14px;
+          margin-top: 8px;
+          display: none;
+        "></div>
+        <div id="codeSuccess" style="
+          color: #10b981;
+          font-size: 14px;
+          margin-top: 8px;
+          display: none;
+        "></div>
+      </div>
+      
+      <div id="groupPreview" style="
+        display: none;
+        margin-bottom: 24px;
+        padding: 20px;
+        background: ${isDarkMode ? '#334155' : '#f8fafc'};
+        border-radius: 12px;
+        border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+      ">
+        <div style="
+          display: flex;
+          align-items: center;
+          margin-bottom: 16px;
+        ">
+          <div id="previewEmoji" style="
+            font-size: 32px;
+            margin-right: 12px;
+          "></div>
+          <div>
+            <div id="previewName" style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              font-size: 18px;
+              font-weight: 600;
+              margin-bottom: 4px;
+            "></div>
+            <div id="previewType" style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              font-size: 14px;
+            "></div>
+          </div>
+        </div>
+        <div id="previewDescription" style="
+          color: ${isDarkMode ? '#cbd5e1' : '#475569'};
+          font-size: 14px;
+          line-height: 1.5;
+          margin-bottom: 12px;
+        "></div>
+        <div id="previewMembers" style="
+          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+          font-size: 12px;
+        "></div>
+      </div>
+      
+      <div style="
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      ">
+        <button type="button" id="cancelJoinGroup" style="
+          padding: 12px 24px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          background-color: transparent;
+          color: ${isDarkMode ? '#cbd5e1' : '#64748b'};
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">Cancel</button>
+        <button type="submit" id="joinGroupSubmit" style="
+          padding: 12px 24px;
+          border: none;
+          background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+          color: white;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-width: 120px;
+          opacity: 0.5;
+        " disabled>Join Group</button>
+      </div>
+    </form>
+  `;
+  
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+  
+  const inviteCodeInput = document.getElementById('inviteCode');
+  const codeError = document.getElementById('codeError');
+  const codeSuccess = document.getElementById('codeSuccess');
+  const groupPreview = document.getElementById('groupPreview');
+  const joinButton = document.getElementById('joinGroupSubmit');
+  
+  let debounceTimer = null;
+  let currentGroup = null;
+  
+  // Debounced code validation
+  inviteCodeInput.addEventListener('input', function() {
+    const code = this.value.trim().toUpperCase();
+    
+    // Clear previous states
+    codeError.style.display = 'none';
+    codeSuccess.style.display = 'none';
+    groupPreview.style.display = 'none';
+    joinButton.disabled = true;
+    joinButton.style.opacity = '0.5';
+    currentGroup = null;
+    
+    if (code.length < 6) return;
+    
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      try {
+        // Query groups by invite code
+        const groupQuery = query(
+          collection(db, 'Groups'),
+          where('inviteCode', '==', code)
+        );
+        const snapshot = await getDocs(groupQuery);
+        
+        if (snapshot.empty) {
+          codeError.textContent = 'Invalid invitation code';
+          codeError.style.display = 'block';
+          return;
+        }
+        
+        const groupDoc = snapshot.docs[0];
+        const groupData = { id: groupDoc.id, ...groupDoc.data() };
+        
+        // Check if user is already a member
+        if (groupData.members && groupData.members.some(member => member.userId === currentUser.uid)) {
+          codeError.textContent = 'You are already a member of this group';
+          codeError.style.display = 'block';
+          return;
+        }
+        
+        // Show group preview
+        currentGroup = groupData;
+        document.getElementById('previewEmoji').textContent = groupData.emoji || '👥';
+        document.getElementById('previewName').textContent = groupData.name;
+        document.getElementById('previewType').textContent = groupData.type ? `${groupData.type.charAt(0).toUpperCase()}${groupData.type.slice(1)} Group` : 'Group';
+        document.getElementById('previewDescription').textContent = groupData.description || 'No description provided';
+        document.getElementById('previewMembers').textContent = `${groupData.members ? groupData.members.length : 0} member(s)`;
+        
+        groupPreview.style.display = 'block';
+        codeSuccess.textContent = 'Group found! Ready to join';
+        codeSuccess.style.display = 'block';
+        joinButton.disabled = false;
+        joinButton.style.opacity = '1';
+        
+      } catch (error) {
+        console.error('Error validating invite code:', error);
+        codeError.textContent = 'Error validating code. Please try again.';
+        codeError.style.display = 'block';
+      }
+    }, 800);
+  });
+  
+  // Handle form submission
+  document.getElementById('joinGroupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    if (!currentGroup) return;
+    
+    const submitBtn = document.getElementById('joinGroupSubmit');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Joining...';
+    submitBtn.disabled = true;
+    
+    try {
+      // Add user to group members
+      const updatedMembers = [...(currentGroup.members || []), {
+        userId: currentUser.uid,
+        email: currentUser.email,
+        name: currentUser.displayName || currentUser.email,
+        role: 'member',
+        joinedAt: new Date().toISOString()
+      }];
+      
+      await updateDoc(doc(db, 'Groups', currentGroup.id), {
+        members: updatedMembers
+      });
+      
+      // Add group to local groups array
+      const newGroup = {
+        ...currentGroup,
+        members: updatedMembers
+      };
+      groups.push(newGroup);
+      
+      // Switch to the new group
+      switchToGroup(currentGroup.id);
+      
+      // Close modal
+      document.body.removeChild(modalOverlay);
+      
+      // Show success message
+      showSuccessMessage(`Successfully joined "${currentGroup.name}"!`);
+      
+    } catch (error) {
+      console.error('Error joining group:', error);
+      alert('Error joining group. Please try again.');
+      submitBtn.textContent = originalText;
+      submitBtn.disabled = false;
+    }
+  });
+  
+  // Handle close events
+  function closeModal() {
+    document.body.removeChild(modalOverlay);
+  }
+  
+  document.getElementById('closeJoinModal').addEventListener('click', closeModal);
+  document.getElementById('cancelJoinGroup').addEventListener('click', closeModal);
+  
+  // Close on overlay click
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+  
+  // Focus the invite code input
+  setTimeout(() => {
+    document.getElementById('inviteCode').focus();
+  }, 100);
+}
+
+// Real-time listeners with group context
+let todosUnsubscribe = null;
+let groceriesUnsubscribe = null;
+let eventsUnsubscribe = null;
+let tagsUnsubscribe = null;
+let groupsUnsubscribe = null;
+
+function setupRealtimeListeners() {
+  // Clean up existing listeners
+  if (todosUnsubscribe) todosUnsubscribe();
+  if (groceriesUnsubscribe) groceriesUnsubscribe();
+  if (eventsUnsubscribe) eventsUnsubscribe();
+  if (tagsUnsubscribe) tagsUnsubscribe();
+  if (groupsUnsubscribe) groupsUnsubscribe();
+  
+  const currentGroup = getCurrentGroup();
+  
+  // Set up queries based on group type
+  let todosQuery, groceriesQuery, eventsQuery, tagsQuery;
+  
+  if (currentGroup.id === 'personal') {
+    // Personal lists - filter by userId only (for backward compatibility)
+    // Personal items have either no groupId field or groupId = null
+    todosQuery = query(
+      collection(db, 'todos'), 
+      where('userId', '==', currentUser.uid)
+    );
+    groceriesQuery = query(
+      collection(db, 'groceries'), 
+      where('userId', '==', currentUser.uid)
+    );
+    eventsQuery = query(
+      collection(db, 'events'), 
+      where('userId', '==', currentUser.uid)
+    );
+    tagsQuery = query(
+      collection(db, 'tags'), 
+      where('userId', '==', currentUser.uid)
+    );
+  } else {
+    // Group lists - filter by groupId
+    todosQuery = query(
+      collection(db, 'todos'), 
+      where('groupId', '==', currentGroup.id)
+    );
+    groceriesQuery = query(
+      collection(db, 'groceries'), 
+      where('groupId', '==', currentGroup.id)
+    );
+    eventsQuery = query(
+      collection(db, 'events'), 
+      where('groupId', '==', currentGroup.id)
+    );
+    tagsQuery = query(
+      collection(db, 'tags'), 
+      where('groupId', '==', currentGroup.id)
+    );
+  }
+  
+  // Set up listeners
+  todosUnsubscribe = onSnapshot(todosQuery, (snapshot) => {
+    let filteredDocs = snapshot.docs;
+    
+    // For personal view, filter out items with groupId
+    if (currentGroup.id === 'personal') {
+      filteredDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return !data.groupId || data.groupId === null;
+      });
+    }
+    
+    todos = filteredDocs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(todo => {
+        // Show all todos in personal space
+        if (currentGroup.id === 'personal') return true;
+        
+        // In groups, show public todos and user's own private todos
+        return !todo.isPrivate || todo.userId === currentUser.uid;
+      });
+    renderTodos();
+  });
+  
+  groceriesUnsubscribe = onSnapshot(groceriesQuery, (snapshot) => {
+    let filteredDocs = snapshot.docs;
+    
+    // For personal view, filter out items with groupId
+    if (currentGroup.id === 'personal') {
+      filteredDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return !data.groupId || data.groupId === null;
+      });
+    }
+    
+    groceries = filteredDocs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(grocery => {
+        // Show all groceries in personal space
+        if (currentGroup.id === 'personal') return true;
+        
+        // In groups, show public groceries and user's own private groceries
+        return !grocery.isPrivate || grocery.userId === currentUser.uid;
+      });
+    renderGroceries();
+  });
+  
+  eventsUnsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+    let filteredDocs = snapshot.docs;
+    
+    // For personal view, filter out items with groupId
+    if (currentGroup.id === 'personal') {
+      filteredDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return !data.groupId || data.groupId === null;
+      });
+    }
+    
+    events = filteredDocs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(event => {
+        // Show all events in personal space
+        if (currentGroup.id === 'personal') return true;
+        
+        // In groups, show public events and user's own private events
+        return !event.isPrivate || event.userId === currentUser.uid;
+      });
+    renderEvents();
+  });
+  
+  tagsUnsubscribe = onSnapshot(tagsQuery, (snapshot) => {
+    let filteredDocs = snapshot.docs;
+    
+    // For personal view, filter out items with groupId
+    if (currentGroup.id === 'personal') {
+      filteredDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return !data.groupId || data.groupId === null;
+      });
+    }
+    
+    tags = filteredDocs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    // Refresh todos view if it's active to update category filters
+    if (document.getElementById('todosList')) {
+      loadTabContent('todos');
+    }
+  });
+  
+  // Set up real-time groups listener
+  groupsUnsubscribe = onSnapshot(collection(db, 'Groups'), (snapshot) => {
+    // Filter groups where user is a member and check for changes
+    const updatedGroups = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(group => 
+        group.members && group.members.some(member => member.userId === currentUser?.uid)
+      );
+    
+    // Check if groups changed
+    const groupsChanged = groups.length !== updatedGroups.length || 
+      groups.some(group => !updatedGroups.find(newGroup => newGroup.id === group.id)) ||
+      updatedGroups.some(newGroup => {
+        const oldGroup = groups.find(g => g.id === newGroup.id);
+        return !oldGroup || JSON.stringify(oldGroup) !== JSON.stringify(newGroup);
+      });
+    
+    if (groupsChanged) {
+      console.log('Groups updated in real-time:', updatedGroups);
+      groups = updatedGroups;
+      
+      // Check if current group still exists and user is still a member
+      if (currentGroupId !== 'personal') {
+        const currentGroup = groups.find(g => g.id === currentGroupId);
+        if (!currentGroup) {
+          // Current group no longer exists or user was removed, switch to personal
+          console.log('Current group no longer available, switching to personal');
+          switchToGroup('personal');
+          showSuccessMessage('You were removed from the group or it was deleted. Switched to personal space.');
+        }
+      }
+      
+      // Update group switcher if it's open
+      const groupSwitcherModal = document.getElementById('groupSwitcherModal');
+      if (groupSwitcherModal && groupSwitcherModal.style.display === 'flex') {
+        renderGroupsList();
+      }
+    }
+  });
+}
+
+// Load groups from Firebase
+async function loadUserGroups() {
+  if (!currentUser) return;
+  
+  try {
+    // For now, get all groups and filter client-side
+    // In production, you'd want a better indexing strategy
+    const snapshot = await getDocs(collection(db, 'Groups'));
+    
+    // Filter groups where user is a member
+    groups = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(group => 
+        group.members && group.members.some(member => member.userId === currentUser.uid)
+      );
+    
+    console.log('Loaded groups:', groups);
+  } catch (error) {
+    console.error('Error loading groups:', error);
+    groups = []; // Set to empty array on error
+  }
+}
+
+// Generate user avatar initials
+function getUserAvatar(user) {
+  if (!user) return '👤';
+  
+  const name = user.name || user.email || '';
+  const initials = name
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('');
+  
+  return initials || '👤';
+}
+
+// Generate avatar color based on user ID
+function getAvatarColor(userId) {
+  if (!userId) return '#6b7280';
+  
+  const colors = [
+    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+    '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+    '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+    '#ec4899', '#f43f5e'
+  ];
+  
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  return colors[Math.abs(hash) % colors.length];
+}
+
+// Check for recent activity in a group
+function getGroupActivity(groupId) {
+  if (groupId === 'personal') return null;
+  
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  
+  // Check for recent activity in todos, groceries, events
+  const allGroupItems = [
+    ...todos.filter(item => item.groupId === groupId),
+    ...groceries.filter(item => item.groupId === groupId),
+    ...events.filter(item => item.groupId === groupId)
+  ];
+  
+  let recentActivity = false;
+  let veryRecentActivity = false;
+  let lastActivityTime = null;
+  
+  allGroupItems.forEach(item => {
+    const itemDate = item.createdAt?.toDate?.() || new Date(item.createdAt);
+    if (itemDate > oneDayAgo) {
+      recentActivity = true;
+      if (itemDate > oneHourAgo) {
+        veryRecentActivity = true;
+      }
+      if (!lastActivityTime || itemDate > lastActivityTime) {
+        lastActivityTime = itemDate;
+      }
+    }
+  });
+  
+  return {
+    hasRecentActivity: recentActivity,
+    hasVeryRecentActivity: veryRecentActivity,
+    lastActivityTime: lastActivityTime
+  };
+}
+
+// Format relative time
+function getRelativeTime(date) {
+  if (!date) return '';
+  
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffMins < 1) return 'now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+// Calculate group statistics
+function getGroupStatistics(groupId) {
+  if (groupId === 'personal') {
+    const personalTodos = todos.filter(t => !t.groupId);
+    const personalGroceries = groceries.filter(g => !g.groupId);
+    const personalEvents = events.filter(e => !e.groupId);
+    
+    return {
+      totalItems: personalTodos.length + personalGroceries.length + personalEvents.length,
+      completedTodos: personalTodos.filter(t => t.completed).length,
+      totalTodos: personalTodos.length,
+      completedGroceries: personalGroceries.filter(g => g.completed).length,
+      totalGroceries: personalGroceries.length,
+      upcomingEvents: personalEvents.filter(e => {
+        const eventDate = e.datetime?.toDate?.() || new Date(e.datetime);
+        return eventDate > new Date();
+      }).length,
+      totalEvents: personalEvents.length
+    };
+  }
+  
+  // Group statistics
+  const groupTodos = todos.filter(t => t.groupId === groupId);
+  const groupGroceries = groceries.filter(g => g.groupId === groupId);
+  const groupEvents = events.filter(e => e.groupId === groupId);
+  
+  const memberStats = {};
+  const group = groups.find(g => g.id === groupId);
+  
+  if (group?.members) {
+    group.members.forEach(member => {
+      const memberTodos = groupTodos.filter(t => t.userId === member.userId);
+      const memberGroceries = groupGroceries.filter(g => g.userId === member.userId);
+      const memberEvents = groupEvents.filter(e => e.userId === member.userId);
+      
+      memberStats[member.userId] = {
+        name: member.name || member.email,
+        totalContributions: memberTodos.length + memberGroceries.length + memberEvents.length,
+        completedTodos: memberTodos.filter(t => t.completed).length,
+        totalTodos: memberTodos.length,
+        completedGroceries: memberGroceries.filter(g => g.completed).length,
+        totalGroceries: memberGroceries.length,
+        totalEvents: memberEvents.length
+      };
+    });
+  }
+  
+  return {
+    totalItems: groupTodos.length + groupGroceries.length + groupEvents.length,
+    completedTodos: groupTodos.filter(t => t.completed).length,
+    totalTodos: groupTodos.length,
+    completedGroceries: groupGroceries.filter(g => g.completed).length,
+    totalGroceries: groupGroceries.length,
+    upcomingEvents: groupEvents.filter(e => {
+      const eventDate = e.datetime?.toDate?.() || new Date(e.datetime);
+      return eventDate > new Date();
+    }).length,
+    totalEvents: groupEvents.length,
+    memberStats: memberStats,
+    completionRate: Math.round((groupTodos.filter(t => t.completed).length + groupGroceries.filter(g => g.completed).length) / (groupTodos.length + groupGroceries.length) * 100) || 0
+  };
+}
+
+// Group color themes
+const groupColorThemes = {
+  personal: {
+    primary: '#667eea',
+    secondary: '#764ba2',
+    accent: '#6366f1',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  },
+  family: {
+    primary: '#10b981',
+    secondary: '#34d399',
+    accent: '#059669',
+    gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+  },
+  couple: {
+    primary: '#ec4899',
+    secondary: '#f472b6',
+    accent: '#db2777',
+    gradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)'
+  },
+  friends: {
+    primary: '#f59e0b',
+    secondary: '#fbbf24',
+    accent: '#d97706',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)'
+  },
+  household: {
+    primary: '#8b5cf6',
+    secondary: '#a78bfa',
+    accent: '#7c3aed',
+    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+  },
+  work: {
+    primary: '#06b6d4',
+    secondary: '#22d3ee',
+    accent: '#0891b2',
+    gradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)'
+  },
+  roommates: {
+    primary: '#14b8a6',
+    secondary: '#5eead4',
+    accent: '#0f766e',
+    gradient: 'linear-gradient(135deg, #14b8a6 0%, #5eead4 100%)'
+  },
+  travel: {
+    primary: '#f97316',
+    secondary: '#fb923c',
+    accent: '#ea580c',
+    gradient: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'
+  },
+  study: {
+    primary: '#6366f1',
+    secondary: '#818cf8',
+    accent: '#4f46e5',
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)'
+  }
+};
+
+// Get theme for current group
+function getCurrentGroupTheme() {
+  const currentGroup = getCurrentGroup();
+  const groupType = currentGroup.type || 'personal';
+  
+  return groupColorThemes[groupType] || groupColorThemes.personal;
+}
+
+// Apply group theme to CSS variables
+function applyGroupTheme() {
+  const theme = getCurrentGroupTheme();
+  
+  // Create or update CSS custom properties
+  let themeStyle = document.getElementById('group-theme-style');
+  if (!themeStyle) {
+    themeStyle = document.createElement('style');
+    themeStyle.id = 'group-theme-style';
+    document.head.appendChild(themeStyle);
+  }
+  
+  themeStyle.textContent = `
+    :root {
+      --group-primary: ${theme.primary};
+      --group-secondary: ${theme.secondary};
+      --group-accent: ${theme.accent};
+      --group-gradient: ${theme.gradient};
+    }
+    
+    /* Apply theme to key UI elements */
+    .nav-tab.active {
+      background: var(--group-gradient) !important;
+    }
+    
+    .primary-btn {
+      background: var(--group-gradient) !important;
+    }
+    
+    .accent-color {
+      color: var(--group-primary) !important;
+    }
+    
+    .accent-bg {
+      background: var(--group-primary) !important;
+    }
+    
+    .group-themed-gradient {
+      background: var(--group-gradient) !important;
+    }
+    
+    /* Theme specific animations */
+    .group-pulse {
+      animation: groupPulse 2s infinite;
+    }
+    
+    @keyframes groupPulse {
+      0%, 100% { 
+        box-shadow: 0 0 0 0 ${theme.primary}40;
+      }
+      50% { 
+        box-shadow: 0 0 0 10px ${theme.primary}00;
+      }
+    }
+  `;
+}
+
+// Generate unique invite code
+function generateInviteCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const segments = [];
+  
+  // Generate 3 segments of 4 characters each (e.g., ABCD-EFGH-1234)
+  for (let segment = 0; segment < 3; segment++) {
+    let segmentStr = '';
+    for (let i = 0; i < 4; i++) {
+      segmentStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    segments.push(segmentStr);
+  }
+  
+  return segments.join('-');
+}
+
+// Success message utility
+function showSuccessMessage(message) {
+  // Create success notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
+    z-index: 10001;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+    max-width: 300px;
+    word-wrap: break-word;
+  `;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Animate in
+  setTimeout(() => {
+    notification.style.transform = 'translateX(0)';
+  }, 100);
+  
+  // Animate out and remove
+  setTimeout(() => {
+    notification.style.transform = 'translateX(400px)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        document.body.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// Show invite code modal for sharing
+function showInviteCode(groupId, inviteCode) {
+  const group = groups.find(g => g.id === groupId);
+  if (!group || !inviteCode) return;
+  
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? '#1e293b' : '#ffffff'};
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Invite to ${group.name}</h2>
+      <button id="closeInviteModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: ${isDarkMode ? '#334155' : '#f1f5f9'};
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        font-size: 18px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <div style="
+      text-align: center;
+      margin-bottom: 32px;
+      padding: 24px;
+      background: ${isDarkMode ? '#334155' : '#f8fafc'};
+      border-radius: 16px;
+      border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+    ">
+      <div style="
+        font-size: 48px;
+        margin-bottom: 16px;
+      ">${group.emoji || '👥'}</div>
+      <h3 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        font-weight: 600;
+      ">Share this code</h3>
+      <p style="
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+      ">Others can use this code to join "${group.name}"</p>
+    </div>
+    
+    <div style="margin-bottom: 24px;">
+      <label style="
+        display: block;
+        color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      ">Invitation Code</label>
+      <div style="
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      ">
+        <input type="text" id="inviteCodeDisplay" readonly value="${inviteCode}" style="
+          flex: 1;
+          height: 56px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 20px;
+          background-color: ${isDarkMode ? '#334155' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 18px;
+          font-weight: 600;
+          letter-spacing: 2px;
+          text-align: center;
+          outline: none;
+          box-sizing: border-box;
+          cursor: text;
+        ">
+        <button id="copyCodeBtn" style="
+          height: 56px;
+          padding: 0 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        ">📋 Copy</button>
+      </div>
+      <div id="copyStatus" style="
+        color: #10b981;
+        font-size: 14px;
+        margin-top: 8px;
+        display: none;
+      ">Code copied to clipboard!</div>
+    </div>
+    
+    <div style="
+      padding: 20px;
+      background: ${isDarkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)'};
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      margin-bottom: 24px;
+    ">
+      <div style="
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+      ">
+        <span style="font-size: 20px; margin-right: 8px;">💡</span>
+        <div style="
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+        ">How to share</div>
+      </div>
+      <ul style="
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 0;
+        padding-left: 20px;
+      ">
+        <li>Copy the code and share it with others</li>
+        <li>They can join by clicking "📧 Join Group" in AdiDo</li>
+        <li>The code never expires unless you regenerate it</li>
+      </ul>
+    </div>
+    
+    <div style="
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    ">
+      <button id="regenerateCode" style="
+        padding: 12px 24px;
+        border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+        background-color: transparent;
+        color: ${isDarkMode ? '#cbd5e1' : '#64748b'};
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      ">Regenerate Code</button>
+      <button id="closeInviteModalBtn" style="
+        padding: 12px 24px;
+        border: none;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      ">Done</button>
+    </div>
+  `;
+  
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+  
+  // Copy functionality
+  document.getElementById('copyCodeBtn').addEventListener('click', async function() {
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      document.getElementById('copyStatus').style.display = 'block';
+      setTimeout(() => {
+        const status = document.getElementById('copyStatus');
+        if (status) status.style.display = 'none';
+      }, 3000);
+    } catch (error) {
+      // Fallback for older browsers
+      const input = document.getElementById('inviteCodeDisplay');
+      input.select();
+      document.execCommand('copy');
+      document.getElementById('copyStatus').style.display = 'block';
+      setTimeout(() => {
+        const status = document.getElementById('copyStatus');
+        if (status) status.style.display = 'none';
+      }, 3000);
+    }
+  });
+  
+  // Regenerate code functionality
+  document.getElementById('regenerateCode').addEventListener('click', async function() {
+    const btn = this;
+    const originalText = btn.textContent;
+    btn.textContent = 'Regenerating...';
+    btn.disabled = true;
+    
+    try {
+      const newCode = generateInviteCode();
+      await updateDoc(doc(db, 'Groups', groupId), {
+        inviteCode: newCode
+      });
+      
+      // Update local group data
+      const groupIndex = groups.findIndex(g => g.id === groupId);
+      if (groupIndex !== -1) {
+        groups[groupIndex].inviteCode = newCode;
+      }
+      
+      // Update the input display
+      document.getElementById('inviteCodeDisplay').value = newCode;
+      
+      showSuccessMessage('New invitation code generated!');
+      
+    } catch (error) {
+      console.error('Error regenerating code:', error);
+      alert('Error regenerating code. Please try again.');
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+  
+  // Handle close events
+  function closeModal() {
+    document.body.removeChild(modalOverlay);
+  }
+  
+  document.getElementById('closeInviteModal').addEventListener('click', closeModal);
+  document.getElementById('closeInviteModalBtn').addEventListener('click', closeModal);
+  
+  // Close on overlay click
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+  
+  // Select the code for easy copying
+  setTimeout(() => {
+    document.getElementById('inviteCodeDisplay').select();
+  }, 100);
+}
+
+// Show member management modal
+function showMemberManagement(groupId) {
+  const group = groups.find(g => g.id === groupId);
+  if (!group) return;
+  
+  const currentUserMember = group.members?.find(m => m.userId === currentUser?.uid);
+  const isOwner = currentUserMember?.role === 'owner';
+  const isAdmin = currentUserMember?.role === 'admin';
+  const canManage = isOwner || isAdmin;
+  
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? '#1e293b' : '#ffffff'};
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+  `;
+  
+  const membersList = group.members?.map(member => {
+    const isCurrentUser = member.userId === currentUser?.uid;
+    const canChangeRole = canManage && !isCurrentUser && member.role !== 'owner';
+    const canRemove = canManage && !isCurrentUser && (isOwner || member.role === 'member');
+    
+    const roleColor = {
+      owner: '#f59e0b',
+      admin: '#8b5cf6',
+      member: '#6b7280'
+    }[member.role] || '#6b7280';
+    
+    const roleEmoji = {
+      owner: '👑',
+      admin: '⭐',
+      member: '👤'
+    }[member.role] || '👤';
+    
+    return `
+      <div style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        background: ${isDarkMode ? 'rgba(40, 40, 40, 0.5)' : 'rgba(248, 250, 252, 0.8)'};
+        border-radius: 12px;
+        margin-bottom: 12px;
+        border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+      ">
+        <div style="display: flex; align-items: center; flex: 1;">
+          <div style="
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, ${roleColor}20 0%, ${roleColor}40 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 16px;
+          ">${roleEmoji}</div>
+          <div style="flex: 1;">
+            <div style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              font-weight: 600;
+              font-size: 14px;
+              margin-bottom: 2px;
+            ">${member.name || member.email}${isCurrentUser ? ' (You)' : ''}</div>
+            <div style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              font-size: 12px;
+            ">${member.email}</div>
+          </div>
+          <div style="
+            background: ${roleColor}20;
+            color: ${roleColor};
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border: 1px solid ${roleColor}40;
+          ">${member.role}</div>
+        </div>
+        
+        ${(canChangeRole || canRemove) ? `
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 16px;">
+            ${canChangeRole ? `
+              <button onclick="changeMemberRole('${groupId}', '${member.userId}', '${member.role}')" style="
+                padding: 6px 12px;
+                background: rgba(139, 92, 246, 0.1);
+                color: #8b5cf6;
+                border: 1px solid #8b5cf6;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+              " title="Change role">⚙️</button>
+            ` : ''}
+            ${canRemove ? `
+              <button onclick="removeMember('${groupId}', '${member.userId}', '${member.name || member.email}')" style="
+                padding: 6px 12px;
+                background: rgba(239, 68, 68, 0.1);
+                color: #ef4444;
+                border: 1px solid #ef4444;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+              " title="Remove member">🗑️</button>
+            ` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('') || '<div style="text-align: center; color: #94a3b8; padding: 20px;">No members found</div>';
+  
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">${group.emoji} ${group.name} Members</h2>
+      <button id="closeMembersModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: ${isDarkMode ? '#334155' : '#f1f5f9'};
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        font-size: 18px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <div style="
+      background: ${isDarkMode ? '#334155' : '#f8fafc'};
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+    ">
+      <div style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      ">
+        <h3 style="
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+        ">Group Members (${group.members?.length || 0})</h3>
+        ${canManage ? `
+          <button onclick="showInviteCode('${groupId}', '${group.inviteCode || ''}')" style="
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          ">+ Invite More</button>
+        ` : ''}
+      </div>
+      
+      <div style="max-height: 400px; overflow-y: auto;">
+        ${membersList}
+      </div>
+    </div>
+    
+    ${isOwner ? `
+      <div style="
+        padding: 20px;
+        background: rgba(239, 68, 68, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        margin-bottom: 24px;
+      ">
+        <div style="
+          display: flex;
+          align-items: center;
+          margin-bottom: 12px;
+        ">
+          <span style="font-size: 20px; margin-right: 8px;">⚠️</span>
+          <div style="
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            font-size: 14px;
+            font-weight: 600;
+          ">Danger Zone</div>
+        </div>
+        <div style="
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        ">
+          <button id="transferOwnership" style="
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          ">👑 Transfer Ownership</button>
+          <button id="deleteGroup" style="
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          ">🗑️ Delete Group</button>
+        </div>
+      </div>
+    ` : ''}
+    
+    <div style="
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    ">
+      <button id="closeMembersModalBtn" style="
+        padding: 12px 24px;
+        border: none;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      ">Done</button>
+    </div>
+  `;
+  
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+  
+  // Handle close events
+  function closeModal() {
+    document.body.removeChild(modalOverlay);
+  }
+  
+  document.getElementById('closeMembersModal').addEventListener('click', closeModal);
+  document.getElementById('closeMembersModalBtn').addEventListener('click', closeModal);
+  
+  // Close on overlay click
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+  
+  // Danger zone actions (only for owners)
+  if (isOwner) {
+    document.getElementById('transferOwnership')?.addEventListener('click', () => {
+      closeModal();
+      // showTransferOwnership(groupId);
+      alert('Transfer ownership feature coming soon!');
+    });
+    
+    document.getElementById('deleteGroup')?.addEventListener('click', () => {
+      if (confirm(`Are you sure you want to delete "${group.name}"? This action cannot be undone and will remove all group data including todos, groceries, and events.`)) {
+        deleteGroup(groupId);
+        closeModal();
+      }
+    });
+  }
+}
+
+// Change member role
+async function changeMemberRole(groupId, userId, currentRole) {
+  const roles = ['member', 'admin'];
+  const newRole = currentRole === 'member' ? 'admin' : 'member';
+  
+  if (!confirm(`Change this member's role to ${newRole}?`)) return;
+  
+  try {
+    const group = groups.find(g => g.id === groupId);
+    const updatedMembers = group.members.map(member => 
+      member.userId === userId ? {...member, role: newRole} : member
+    );
+    
+    await updateDoc(doc(db, 'Groups', groupId), {
+      members: updatedMembers
+    });
+    
+    // Update local data
+    const groupIndex = groups.findIndex(g => g.id === groupId);
+    if (groupIndex !== -1) {
+      groups[groupIndex].members = updatedMembers;
+    }
+    
+    showSuccessMessage(`Member role updated to ${newRole}!`);
+    
+    // Refresh the modal
+    document.body.removeChild(document.querySelector('.fixed'));
+    showMemberManagement(groupId);
+    
+  } catch (error) {
+    console.error('Error changing member role:', error);
+    alert('Error changing member role. Please try again.');
+  }
+}
+
+// Remove member from group
+async function removeMember(groupId, userId, memberName) {
+  if (!confirm(`Remove ${memberName} from the group?`)) return;
+  
+  try {
+    const group = groups.find(g => g.id === groupId);
+    const updatedMembers = group.members.filter(member => member.userId !== userId);
+    
+    await updateDoc(doc(db, 'Groups', groupId), {
+      members: updatedMembers
+    });
+    
+    // Update local data
+    const groupIndex = groups.findIndex(g => g.id === groupId);
+    if (groupIndex !== -1) {
+      groups[groupIndex].members = updatedMembers;
+    }
+    
+    showSuccessMessage(`${memberName} removed from group!`);
+    
+    // Refresh the modal
+    document.body.removeChild(document.querySelector('.fixed'));
+    showMemberManagement(groupId);
+    
+  } catch (error) {
+    console.error('Error removing member:', error);
+    alert('Error removing member. Please try again.');
+  }
+}
+
+// Delete group (owner only)
+async function deleteGroup(groupId) {
+  try {
+    // Delete the group from Firestore
+    await deleteDoc(doc(db, 'Groups', groupId));
+    
+    // Remove from local groups array
+    groups = groups.filter(g => g.id !== groupId);
+    
+    // If this was the current group, switch to personal
+    if (currentGroupId === groupId) {
+      switchToGroup('personal');
+    }
+    
+    showSuccessMessage('Group deleted successfully!');
+    
+  } catch (error) {
+    console.error('Error deleting group:', error);
+    alert('Error deleting group. Please try again.');
+  }
 }
 
 // Make functions available globally
 window.closeGroupSwitcher = closeGroupSwitcher;
 window.selectGroup = selectGroup;
+window.showInviteCode = showInviteCode;
+window.showMemberManagement = showMemberManagement;
+window.changeMemberRole = changeMemberRole;
+window.removeMember = removeMember;
 
 
 
@@ -867,6 +3034,34 @@ function loadTabContent(tab) {
               box-sizing: border-box;
             ">
           </div>
+
+          ${getCurrentGroup().id !== 'personal' ? `
+            <div style="margin-bottom: 20px;">
+              <label style="
+                display: flex;
+                align-items: center;
+                color: ${textColor};
+                font-size: 14px;
+                font-weight: 600;
+                gap: 12px;
+                cursor: pointer;
+              ">
+                <input type="checkbox" id="privacyToggle" style="
+                  width: 18px;
+                  height: 18px;
+                  cursor: pointer;
+                  accent-color: #667eea;
+                ">
+                <span>🔒 Make this todo private (only visible to you)</span>
+              </label>
+              <div style="
+                font-size: 12px;
+                color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+                margin-top: 8px;
+                margin-left: 30px;
+              ">Private todos are only visible to you, even in shared groups</div>
+            </div>
+          ` : ''}
 
           <div style="
             display: flex;
@@ -1997,10 +4192,15 @@ async function saveTodo() {
   
   if (text && currentUser) {
     try {
+      const currentGroup = getCurrentGroup();
+      const isPrivate = document.getElementById('privacyToggle')?.checked || false;
+      
       const todoData = {
         text: text,
         completed: false,
         userId: currentUser.uid,
+        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
+        isPrivate: isPrivate && currentGroup.id !== 'personal', // Only allow private items in groups
         category: category,
         priority: priority,
         createdAt: serverTimestamp()
@@ -2244,10 +4444,12 @@ function setupTagModalListeners() {
       
       if (tagName && currentUser) {
         try {
+          const currentGroup = getCurrentGroup();
           await addDoc(collection(db, 'tags'), {
             name: tagName,
             color: selectedColor,
             userId: currentUser.uid,
+            groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
             createdAt: serverTimestamp()
           });
           
@@ -2878,11 +5080,16 @@ async function addGrocery() {
   
   if (text && currentUser) {
     try {
+      const currentGroup = getCurrentGroup();
+      const isPrivate = document.getElementById('groceryPrivacyToggle')?.checked || false;
+      
       await addDoc(collection(db, 'groceries'), {
         text: text,
         quantity: quantity,
         completed: false,
         userId: currentUser.uid,
+        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
+        isPrivate: isPrivate && currentGroup.id !== 'personal',
         createdAt: serverTimestamp()
       });
       textInput.value = '';
@@ -2910,12 +5117,14 @@ async function addEvent() {
     try {
       const eventDateTime = new Date(`${date}T${time || '00:00'}`);
       
+      const currentGroup = getCurrentGroup();
       await addDoc(collection(db, 'events'), {
         name: name,
         description: description || '',
         location: location || '',
         datetime: eventDateTime,
         userId: currentUser.uid,
+        groupId: currentGroup.id === 'personal' ? null : currentGroup.id,
         createdAt: serverTimestamp()
       });
       
@@ -3041,7 +5250,7 @@ function renderTodos() {
               word-wrap: break-word;
               flex: 1;
               margin-right: 12px;
-            ">${todo.text}</div>
+            ">${todo.text}${todo.isPrivate ? ' <span style="color: #f59e0b; font-size: 14px; margin-left: 8px;" title="Private - only visible to you">🔒</span>' : ''}</div>
             
             <div style="
               background: ${priorityColor};
@@ -3381,64 +5590,35 @@ if (localStorage.getItem('isDarkMode')) {
 }
 
 // Auth state listener
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   
   if (user) {
     console.log('User signed in:', user.email);
     showMainScreen();
     
-    // Set up real-time listeners for todos
-    const todosQuery = query(collection(db, 'todos'), where('userId', '==', user.uid));
-    onSnapshot(todosQuery, (snapshot) => {
-      todos = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      renderTodos();
-    });
-    
-    // Set up real-time listeners for groceries
-    const groceriesQuery = query(collection(db, 'groceries'), where('userId', '==', user.uid));
-    onSnapshot(groceriesQuery, (snapshot) => {
-      groceries = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      renderGroceries();
-    });
-    
-    // Set up real-time listeners for events
-    const eventsQuery = query(collection(db, 'events'), where('userId', '==', user.uid));
-    onSnapshot(eventsQuery, (snapshot) => {
-      events = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      renderEvents();
-    });
-    
-    // Set up real-time listeners for tags
-    const tagsQuery = query(collection(db, 'tags'), where('userId', '==', user.uid));
-    onSnapshot(tagsQuery, (snapshot) => {
-      tags = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Refresh todos view if it's active to update category filters
-      if (document.getElementById('todosList')) {
-        loadTabContent('todos');
-      }
-    });
+    // Set up real-time listeners with group context (includes groups listener)
+    setupRealtimeListeners();
     
   } else {
     console.log('User signed out');
-    showLoginScreen();
+    
+    // Clean up all listeners
+    if (todosUnsubscribe) todosUnsubscribe();
+    if (groceriesUnsubscribe) groceriesUnsubscribe();
+    if (eventsUnsubscribe) eventsUnsubscribe();
+    if (tagsUnsubscribe) tagsUnsubscribe();
+    if (groupsUnsubscribe) groupsUnsubscribe();
+    
     // Clear data when signed out
     todos = [];
     groceries = [];
     events = [];
     tags = [];
+    groups = [];
+    currentGroupId = 'personal';
+    
+    showLoginScreen();
   }
 });
 
@@ -3449,6 +5629,9 @@ function initializeAppState() {
   if (savedGroupId) {
     currentGroupId = savedGroupId;
   }
+  
+  // Apply initial theme
+  applyGroupTheme();
   
   createApp();
 }
