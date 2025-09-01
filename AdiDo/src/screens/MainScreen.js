@@ -13,7 +13,6 @@ import ProfileScreen from './ProfileScreen';
 
 const MainScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('Todo');
-
   const tabs = [
     { id: 'Todo', title: 'Todo', component: TodoListScreen },
     { id: 'Grocery', title: 'Grocery', component: GroceryListScreen },

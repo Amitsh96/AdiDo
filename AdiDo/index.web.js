@@ -2324,6 +2324,11 @@ function createApp() {
         padding: 16px !important;
       }
     }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   `;
   document.head.appendChild(styleElement);
   
@@ -2335,9 +2340,51 @@ function createApp() {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #1a202c;
     ">
+      <!-- Loading Screen -->
+      <div id="loadingScreen" style="
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      ">
+        <div style="
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          padding: 40px;
+          border-radius: 20px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          text-align: center;
+        ">
+          <div style="
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            margin: 0 auto 24px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+          ">📋</div>
+          <div style="
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+          "></div>
+        </div>
+      </div>
+
       <!-- Login Screen -->
       <div id="loginScreen" style="
-        display: flex;
+        display: none;
         flex-direction: column;
         justify-content: center;
         align-items: center;
@@ -2743,7 +2790,14 @@ function updateThemeStyles() {
   });
 }
 
+function showLoadingScreen() {
+  document.getElementById('loadingScreen').style.display = 'flex';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'none';
+}
+
 function showMainScreen() {
+  document.getElementById('loadingScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'block';
   updateThemeStyles();
@@ -2752,6 +2806,7 @@ function showMainScreen() {
 }
 
 function showLoginScreen() {
+  document.getElementById('loadingScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('mainScreen').style.display = 'none';
 }

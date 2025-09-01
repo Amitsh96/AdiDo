@@ -15,7 +15,6 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     // Check if user is already logged in
     const unsubscribe = AuthService.onAuthStateChanged((user) => {
