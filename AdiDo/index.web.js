@@ -1,7 +1,7 @@
 // Import Firebase directly
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
 
 console.log('Loading AdiDo...');
 
@@ -201,6 +201,19 @@ function renderGroupsList() {
                 @keyframes pulse {
                   0%, 100% { transform: scale(1); opacity: 1; }
                   50% { transform: scale(1.1); opacity: 0.7; }
+                }
+                
+                .dragging {
+                  opacity: 0.15 !important;
+                  cursor: grabbing !important;
+                }
+                
+                .todo-item:hover {
+                  cursor: grab;
+                }
+                
+                .grocery-item:hover {
+                  cursor: grab;
                 }
               </style>
             ` : ''}
@@ -2573,6 +2586,25 @@ function createApp() {
         ">
           <!-- Content will be loaded here -->
         </div>
+        
+        <!-- Version Indicator -->
+        <div id="versionIndicator" style="
+          position: fixed;
+          bottom: 16px;
+          right: 16px;
+          background: rgba(0, 0, 0, 0.7);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-family: monospace;
+          z-index: 1000;
+          backdrop-filter: blur(10px);
+          cursor: pointer;
+          user-select: none;
+        " title="Click to toggle version info">
+          v1.0.0 - Latest
+        </div>
       </div>
     </div>
   `;
@@ -2602,6 +2634,25 @@ function setupNavigationListeners() {
       loadTabContent(tabId);
     });
   });
+  
+  // Version indicator click handler
+  const versionIndicator = document.getElementById('versionIndicator');
+  if (versionIndicator) {
+    versionIndicator.addEventListener('click', () => {
+      const currentVersion = versionIndicator.textContent;
+      const newVersion = prompt('Enter version info (e.g., "v1.0.1 - Testing drag drop"):', currentVersion);
+      if (newVersion !== null) {
+        versionIndicator.textContent = newVersion;
+        localStorage.setItem('appVersion', newVersion);
+      }
+    });
+    
+    // Load saved version from localStorage
+    const savedVersion = localStorage.getItem('appVersion');
+    if (savedVersion) {
+      versionIndicator.textContent = savedVersion;
+    }
+  }
 }
 
 // Event listeners
@@ -4229,6 +4280,10 @@ async function saveTodo() {
       const currentGroup = getCurrentGroup();
       const isPrivate = document.getElementById('privacyToggle')?.checked || false;
       
+      // Calculate order for new todo (add at the end)
+      const currentTodos = getFilteredTodos();
+      const maxOrder = currentTodos.length > 0 ? Math.max(...currentTodos.map(t => t.order || 0)) : 0;
+      
       const todoData = {
         text: text,
         completed: false,
@@ -4237,6 +4292,7 @@ async function saveTodo() {
         isPrivate: isPrivate && currentGroupId !== 'personal', // Only allow private items in groups
         category: category,
         priority: priority,
+        order: maxOrder + 1000, // Add at the end with spacing
         createdAt: serverTimestamp()
       };
       
@@ -4760,8 +4816,8 @@ async function saveEditedEvent() {
       name,
       description,
       location,
-      datetime: Timestamp.fromDate(datetime),
-      updatedAt: Timestamp.now()
+      datetime: datetime,
+      updatedAt: serverTimestamp()
     });
     
     document.getElementById('editEventModal').style.display = 'none';
@@ -4786,98 +4842,642 @@ window.closeEditEventModal = () => {
 
 window.saveEditedEvent = saveEditedEvent;
 
-// Drag and drop functionality
+// Real-time drag and drop with live preview
 let draggedTodoId = null;
+let draggedElement = null;
+let draggedIndex = null;
+let currentPreviewIndex = null;
+let todoItems = [];
 
-window.handleTodoDragStart = (event) => {
-  draggedTodoId = event.target.getAttribute('data-todo-id');
-  event.target.style.opacity = '0.5';
+window.handleTodoDragStart = (event, todoId, originalIndex) => {
+  draggedTodoId = todoId;
+  draggedIndex = originalIndex;
+  currentPreviewIndex = originalIndex;
+  draggedElement = event.target.closest('.todo-item');
+  todoItems = Array.from(document.querySelectorAll('.todo-item'));
+  
   event.dataTransfer.effectAllowed = 'move';
+  
+  // Create a clone of the actual item for drag image
+  const dragImage = draggedElement.cloneNode(true);
+  dragImage.style.cssText = `
+    position: absolute;
+    top: -1000px;
+    left: -1000px;
+    width: ${draggedElement.offsetWidth}px;
+    opacity: 0.95;
+    transform: scale(0.98) rotate(1deg);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    z-index: 1000;
+  `;
+  document.body.appendChild(dragImage);
+  
+  event.dataTransfer.setDragImage(dragImage, event.offsetX, event.offsetY);
+  
+  // Clean up ghost image
+  setTimeout(() => {
+    if (document.body.contains(dragImage)) {
+      document.body.removeChild(dragImage);
+    }
+  }, 0);
+  
+  // Make the dragged item semi-transparent but keep its space
+  draggedElement.classList.add('dragging');
+  // Don't modify inline styles - let CSS handle the appearance
+  
+  // Show the bottom drop zone during drag
+  const bottomDropZone = document.querySelector('.bottom-drop-zone');
+  if (bottomDropZone) {
+    bottomDropZone.style.opacity = '0.1';
+  }
 };
 
-window.handleTodoDragOver = (event) => {
+window.handleTodoItemDragOver = (event) => {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
   
-  const draggedElement = event.currentTarget;
-  const targetId = draggedElement.getAttribute('data-todo-id');
+  if (!draggedTodoId) return;
   
-  if (targetId !== draggedTodoId) {
-    // Clear previous indicators
-    document.querySelectorAll('[data-todo-id]').forEach(item => {
-      item.style.borderTop = '';
-      item.style.borderBottom = '';
-      item.style.backgroundColor = '';
-      item.style.transform = '';
-    });
-    
-    // Get mouse position within the element
-    const rect = draggedElement.getBoundingClientRect();
-    const mouseY = event.clientY - rect.top;
-    const elementHeight = rect.height;
-    const isUpperHalf = mouseY < elementHeight / 2;
-    
-    // Show insertion line and lift effect
-    if (isUpperHalf) {
-      draggedElement.style.borderTop = '3px solid #667eea';
-      draggedElement.style.boxShadow = '0 -2px 8px rgba(102, 126, 234, 0.3)';
-    } else {
-      draggedElement.style.borderBottom = '3px solid #667eea';
-      draggedElement.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
-    }
-    
-    // Highlight the drop zone
-    draggedElement.style.backgroundColor = isDarkMode ? 'rgba(102, 126, 234, 0.1)' : 'rgba(102, 126, 234, 0.05)';
-    draggedElement.style.transform = 'scale(1.02)';
-    draggedElement.style.transition = 'all 0.2s ease';
+  const targetElement = event.currentTarget;
+  const targetIndex = parseInt(targetElement.getAttribute('data-original-index'));
+  
+  // Don't do anything if hovering over the same item or if it's the dragged item
+  if (targetIndex === currentPreviewIndex || targetElement === draggedElement) return;
+  
+  // Super fast and sensitive detection
+  const rect = targetElement.getBoundingClientRect();
+  const mouseY = event.clientY - rect.top;
+  const elementHeight = rect.height;
+  
+  // Much more sensitive - use 35% threshold for instant reactions
+  const threshold = elementHeight * 0.35;
+  const isUpperSection = mouseY < threshold;
+  const isLowerSection = mouseY > (elementHeight - threshold);
+  
+  let newPreviewIndex;
+  if (isUpperSection) {
+    newPreviewIndex = targetIndex;
+  } else if (isLowerSection) {
+    newPreviewIndex = targetIndex + 1;
+  } else {
+    // Even in middle section, be more responsive
+    newPreviewIndex = mouseY < elementHeight / 2 ? targetIndex : targetIndex + 1;
+  }
+  
+  // Only update if the preview position changed
+  if (newPreviewIndex !== currentPreviewIndex) {
+    updatePreviewOrder(newPreviewIndex);
+    currentPreviewIndex = newPreviewIndex;
   }
 };
 
-window.handleTodoDragLeave = (event) => {
-  const draggedElement = event.currentTarget;
-  // Only clear if we're actually leaving the element (not entering a child)
-  if (!draggedElement.contains(event.relatedTarget)) {
-    draggedElement.style.borderTop = '';
-    draggedElement.style.borderBottom = '';
-    draggedElement.style.backgroundColor = '';
-    draggedElement.style.transform = '';
-    draggedElement.style.boxShadow = '';
-  }
+window.handleTodoItemDragLeave = (event) => {
+  // Don't reset anything - let the preview stay until we hover over another item
 };
 
-window.handleTodoDrop = async (event) => {
+window.handleBottomDropZoneDragOver = (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  if (!draggedTodoId) return;
+  
+  const dropZone = event.currentTarget;
+  dropZone.style.opacity = '0.6';
+  dropZone.style.border = '1px solid #667eea';
+  dropZone.style.background = 'rgba(102, 126, 234, 0.05)';
+  
+  // Show preview of moving to bottom
+  const totalItems = document.querySelectorAll('.todo-item').length;
+  updatePreviewOrder(totalItems);
+  currentPreviewIndex = totalItems;
+};
+
+window.handleBottomDropZoneDragLeave = (event) => {
+  const dropZone = event.currentTarget;
+  dropZone.style.opacity = '0.2';
+  dropZone.style.border = '1px solid transparent';
+  dropZone.style.background = 'transparent';
+};
+
+window.handleBottomDropZoneDrop = async (event) => {
   event.preventDefault();
   
-  const targetTodoId = event.currentTarget.getAttribute('data-todo-id');
-  const draggedElement = event.currentTarget;
-  
-  // Remove visual feedback
-  draggedElement.style.borderTop = '';
-  draggedElement.style.borderBottom = '';
-  draggedElement.style.backgroundColor = '';
-  draggedElement.style.transform = '';
-  draggedElement.style.boxShadow = '';
-  
-  if (targetTodoId && draggedTodoId && targetTodoId !== draggedTodoId) {
-    await reorderTodos(draggedTodoId, targetTodoId);
+  if (draggedTodoId) {
+    const totalItems = document.querySelectorAll('.todo-item').length;
+    await saveNewTodoOrder(totalItems);
   }
 };
 
 window.handleTodoDragEnd = (event) => {
-  event.target.style.opacity = '1';
+  if (!draggedTodoId) return;
   
-  // Remove visual feedback from all items
-  document.querySelectorAll('[data-todo-id]').forEach(item => {
-    item.style.borderTop = '';
-    item.style.borderBottom = '';
-    item.style.backgroundColor = '';
-    item.style.transform = '';
-    item.style.boxShadow = '';
-    item.style.transition = '';
-  });
+  // If position changed, save the new order
+  if (currentPreviewIndex !== draggedIndex) {
+    saveNewTodoOrder(currentPreviewIndex);
+  } else {
+    // Reset to original positions if no change
+    resetPreviewOrder();
+  }
+  
+  // Restore the dragged item visibility
+  if (draggedElement) {
+    draggedElement.classList.remove('dragging');
+    // Don't modify inline styles - let CSS handle the appearance
+  }
+  
+  // Hide the bottom drop zone
+  const bottomDropZone = document.querySelector('.bottom-drop-zone');
+  if (bottomDropZone) {
+    bottomDropZone.style.opacity = '0';
+    bottomDropZone.style.border = '1px solid transparent';
+    bottomDropZone.style.background = 'transparent';
+  }
   
   draggedTodoId = null;
+  draggedElement = null;
+  draggedIndex = null;
+  currentPreviewIndex = null;
+  todoItems = [];
 };
+
+function updatePreviewOrder(newIndex) {
+  const items = Array.from(document.querySelectorAll('.todo-item'));
+  const draggedItem = items.find(item => item.getAttribute('data-todo-id') === draggedTodoId);
+  
+  if (!draggedItem) return;
+  
+  // Calculate the height of one item (including margin)
+  const itemHeight = draggedItem.offsetHeight + 8; // 8px margin-bottom
+  
+  // Reset all transforms and apply linear movement
+  items.forEach((item) => {
+    if (item === draggedItem) return;
+    
+    const originalIndex = parseInt(item.getAttribute('data-original-index'));
+    let offset = 0;
+    
+    // Simplified linear logic for cleaner movement
+    if (draggedIndex < newIndex) {
+      // Moving item down: shift items up linearly
+      if (originalIndex > draggedIndex && originalIndex < newIndex) {
+        offset = -itemHeight;
+      }
+    } else if (draggedIndex > newIndex) {
+      // Moving item up: shift items down linearly
+      if (originalIndex >= newIndex && originalIndex < draggedIndex) {
+        offset = itemHeight;
+      }
+    }
+    
+    // Apply fast, responsive transformation
+    item.style.transform = `translateY(${offset}px)`;
+    item.style.transition = 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)';
+    
+    // Add subtle visual feedback for items that are moving
+    if (offset !== 0) {
+      item.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.12)';
+    } else {
+      item.style.boxShadow = '';
+    }
+  });
+}
+
+function resetPreviewOrder() {
+  document.querySelectorAll('.todo-item').forEach(item => {
+    if (item !== draggedElement) {
+      item.style.transform = 'translateY(0px)';
+      item.style.transition = 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)';
+      item.style.boxShadow = '';
+    }
+  });
+}
+
+async function saveNewTodoOrder(newIndex) {
+  try {
+    const currentTodos = getFilteredTodos();
+    const draggedTodo = currentTodos[draggedIndex];
+    if (!draggedTodo) return;
+    
+    // Calculate new order based on position
+    let newOrder;
+    const SPACING = 1000;
+    
+    if (newIndex === 0) {
+      // Moving to the beginning
+      const firstTodo = currentTodos[0];
+      newOrder = firstTodo ? (firstTodo.order || 0) - SPACING : SPACING;
+    } else if (newIndex >= currentTodos.length) {
+      // Moving to the end
+      const lastTodo = currentTodos[currentTodos.length - 1];
+      newOrder = (lastTodo.order || 0) + SPACING;
+    } else {
+      // Moving between items
+      let beforeIndex, afterIndex;
+      
+      if (draggedIndex < newIndex) {
+        // Moving down
+        beforeIndex = newIndex - 1;
+        afterIndex = newIndex;
+      } else {
+        // Moving up
+        beforeIndex = newIndex - 1;
+        afterIndex = newIndex;
+      }
+      
+      const beforeTodo = beforeIndex >= 0 ? currentTodos[beforeIndex] : null;
+      const afterTodo = afterIndex < currentTodos.length ? currentTodos[afterIndex] : null;
+      
+      const beforeOrder = beforeTodo ? (beforeTodo.order || 0) : 0;
+      const afterOrder = afterTodo ? (afterTodo.order || 0) : (beforeOrder + SPACING);
+      
+      const gap = afterOrder - beforeOrder;
+      if (gap <= 1) {
+        await rebalanceTodoOrders();
+        return saveNewTodoOrder(newIndex);
+      }
+      
+      newOrder = beforeOrder + (gap / 2);
+    }
+    
+    // Update in Firestore
+    const todoRef = doc(db, 'todos', draggedTodoId);
+    await updateDoc(todoRef, { order: newOrder });
+    
+    // Update local state
+    const todoIndex = todos.findIndex(t => t.id === draggedTodoId);
+    if (todoIndex !== -1) {
+      todos[todoIndex].order = newOrder;
+    }
+    
+    // Re-render
+    renderTodos();
+  } catch (error) {
+    console.error('Error saving new order:', error);
+    resetPreviewOrder();
+  }
+}
+
+async function reorderTodosToPosition(draggedId, targetPosition) {
+  try {
+    const currentTodos = getFilteredTodos();
+    const draggedTodo = currentTodos.find(t => t.id === draggedId);
+    if (!draggedTodo) return;
+    
+    // Calculate new order based on position
+    let newOrder;
+    const SPACING = 1000;
+    
+    if (targetPosition === 0) {
+      // Moving to the beginning
+      const firstTodo = currentTodos[0];
+      newOrder = firstTodo ? (firstTodo.order || 0) - SPACING : SPACING;
+    } else if (targetPosition >= currentTodos.length) {
+      // Moving to the end
+      const lastTodo = currentTodos[currentTodos.length - 1];
+      newOrder = (lastTodo.order || 0) + SPACING;
+    } else {
+      // Moving between items
+      const beforeTodo = currentTodos[targetPosition - 1];
+      const afterTodo = currentTodos[targetPosition];
+      
+      const beforeOrder = beforeTodo ? (beforeTodo.order || 0) : 0;
+      const afterOrder = afterTodo ? (afterTodo.order || 0) : SPACING;
+      
+      // Calculate midpoint
+      const gap = afterOrder - beforeOrder;
+      if (gap <= 1) {
+        // If gap is too small, rebalance the entire list
+        await rebalanceTodoOrders();
+        return reorderTodosToPosition(draggedId, targetPosition); // Retry after rebalancing
+      }
+      
+      newOrder = beforeOrder + (gap / 2);
+    }
+    
+    // Update the order in Firestore
+    const currentGroup = getCurrentGroup();
+    const todoRef = doc(db, 'todos', draggedId);
+    await updateDoc(todoRef, {
+      order: newOrder
+    });
+    
+    // Update local state
+    const todoIndex = todos.findIndex(t => t.id === draggedId);
+    if (todoIndex !== -1) {
+      todos[todoIndex].order = newOrder;
+    }
+    
+    // Re-render the todos
+    renderTodos();
+  } catch (error) {
+    console.error('Error reordering todos:', error);
+  }
+}
+
+// Grocery drag and drop functionality (same as todos)
+let draggedGroceryId = null;
+let draggedGroceryElement = null;
+let draggedGroceryIndex = null;
+let currentGroceryPreviewIndex = null;
+let groceryItems = [];
+
+window.handleGroceryDragStart = (event, groceryId, originalIndex) => {
+  draggedGroceryId = groceryId;
+  draggedGroceryIndex = originalIndex;
+  currentGroceryPreviewIndex = originalIndex;
+  draggedGroceryElement = event.target.closest('.grocery-item');
+  groceryItems = Array.from(document.querySelectorAll('.grocery-item'));
+  
+  event.dataTransfer.effectAllowed = 'move';
+  
+  // Create a clone of the actual item for drag image
+  const dragImage = draggedGroceryElement.cloneNode(true);
+  dragImage.style.cssText = `
+    position: absolute;
+    top: -1000px;
+    left: -1000px;
+    width: ${draggedGroceryElement.offsetWidth}px;
+    opacity: 0.95;
+    transform: scale(0.98) rotate(1deg);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    z-index: 1000;
+  `;
+  document.body.appendChild(dragImage);
+  
+  event.dataTransfer.setDragImage(dragImage, event.offsetX, event.offsetY);
+  
+  // Clean up ghost image
+  setTimeout(() => {
+    if (document.body.contains(dragImage)) {
+      document.body.removeChild(dragImage);
+    }
+  }, 0);
+  
+  // Make the dragged item semi-transparent but keep its space
+  draggedGroceryElement.classList.add('dragging');
+  // Don't modify inline styles - let CSS handle the appearance
+  
+  // Show the bottom drop zone during drag
+  const bottomDropZone = document.querySelector('.bottom-drop-zone-grocery');
+  if (bottomDropZone) {
+    bottomDropZone.style.opacity = '0.1';
+  }
+};
+
+window.handleGroceryItemDragOver = (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  if (!draggedGroceryId) return;
+  
+  const targetElement = event.currentTarget;
+  const targetIndex = parseInt(targetElement.getAttribute('data-original-index'));
+  
+  // Don't do anything if hovering over the same item or if it's the dragged item
+  if (targetIndex === currentGroceryPreviewIndex || targetElement === draggedGroceryElement) return;
+  
+  // Super fast and sensitive detection
+  const rect = targetElement.getBoundingClientRect();
+  const mouseY = event.clientY - rect.top;
+  const elementHeight = rect.height;
+  
+  // Much more sensitive - use 35% threshold for instant reactions
+  const threshold = elementHeight * 0.35;
+  const isUpperSection = mouseY < threshold;
+  const isLowerSection = mouseY > (elementHeight - threshold);
+  
+  let newPreviewIndex;
+  if (isUpperSection) {
+    newPreviewIndex = targetIndex;
+  } else if (isLowerSection) {
+    newPreviewIndex = targetIndex + 1;
+  } else {
+    // Even in middle section, be more responsive
+    newPreviewIndex = mouseY < elementHeight / 2 ? targetIndex : targetIndex + 1;
+  }
+  
+  // Only update if the preview position changed
+  if (newPreviewIndex !== currentGroceryPreviewIndex) {
+    updateGroceryPreviewOrder(newPreviewIndex);
+    currentGroceryPreviewIndex = newPreviewIndex;
+  }
+};
+
+window.handleGroceryItemDragLeave = (event) => {
+  // Don't reset anything - let the preview stay until we hover over another item
+};
+
+window.handleBottomDropZoneGroceryDragOver = (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  
+  if (!draggedGroceryId) return;
+  
+  const dropZone = event.currentTarget;
+  dropZone.style.opacity = '0.6';
+  dropZone.style.border = '1px solid #667eea';
+  dropZone.style.background = 'rgba(102, 126, 234, 0.05)';
+  
+  // Show preview of moving to bottom
+  const totalItems = document.querySelectorAll('.grocery-item').length;
+  updateGroceryPreviewOrder(totalItems);
+  currentGroceryPreviewIndex = totalItems;
+};
+
+window.handleBottomDropZoneGroceryDragLeave = (event) => {
+  const dropZone = event.currentTarget;
+  dropZone.style.opacity = '0.2';
+  dropZone.style.border = '1px solid transparent';
+  dropZone.style.background = 'transparent';
+};
+
+window.handleBottomDropZoneGroceryDrop = async (event) => {
+  event.preventDefault();
+  
+  if (draggedGroceryId) {
+    const totalItems = document.querySelectorAll('.grocery-item').length;
+    await saveNewGroceryOrder(totalItems);
+  }
+};
+
+window.handleGroceryDragEnd = (event) => {
+  if (!draggedGroceryId) return;
+  
+  // If position changed, save the new order
+  if (currentGroceryPreviewIndex !== draggedGroceryIndex) {
+    saveNewGroceryOrder(currentGroceryPreviewIndex);
+  } else {
+    // Reset to original positions if no change
+    resetGroceryPreviewOrder();
+  }
+  
+  // Restore the dragged item visibility
+  if (draggedGroceryElement) {
+    draggedGroceryElement.classList.remove('dragging');
+    // Don't modify inline styles - let CSS handle the appearance
+  }
+  
+  // Hide the bottom drop zone
+  const bottomDropZone = document.querySelector('.bottom-drop-zone-grocery');
+  if (bottomDropZone) {
+    bottomDropZone.style.opacity = '0';
+    bottomDropZone.style.border = '1px solid transparent';
+    bottomDropZone.style.background = 'transparent';
+  }
+  
+  draggedGroceryId = null;
+  draggedGroceryElement = null;
+  draggedGroceryIndex = null;
+  currentGroceryPreviewIndex = null;
+  groceryItems = [];
+};
+
+function updateGroceryPreviewOrder(newIndex) {
+  const items = Array.from(document.querySelectorAll('.grocery-item'));
+  const draggedItem = items.find(item => item.getAttribute('data-grocery-id') === draggedGroceryId);
+  
+  if (!draggedItem) return;
+  
+  // Calculate the height of one item (including margin)
+  const itemHeight = draggedItem.offsetHeight + 8; // 8px margin-bottom
+  
+  // Reset all transforms and apply linear movement
+  items.forEach((item) => {
+    if (item === draggedItem) return;
+    
+    const originalIndex = parseInt(item.getAttribute('data-original-index'));
+    let offset = 0;
+    
+    // Simplified linear logic for cleaner movement
+    if (draggedGroceryIndex < newIndex) {
+      // Moving item down: shift items up linearly
+      if (originalIndex > draggedGroceryIndex && originalIndex < newIndex) {
+        offset = -itemHeight;
+      }
+    } else if (draggedGroceryIndex > newIndex) {
+      // Moving item up: shift items down linearly
+      if (originalIndex >= newIndex && originalIndex < draggedGroceryIndex) {
+        offset = itemHeight;
+      }
+    }
+    
+    // Apply fast, responsive transformation
+    item.style.transform = `translateY(${offset}px)`;
+    item.style.transition = 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)';
+    
+    // Add subtle visual feedback for items that are moving
+    if (offset !== 0) {
+      item.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.12)';
+    } else {
+      item.style.boxShadow = '';
+    }
+  });
+}
+
+function resetGroceryPreviewOrder() {
+  document.querySelectorAll('.grocery-item').forEach(item => {
+    if (item !== draggedGroceryElement) {
+      item.style.transform = 'translateY(0px)';
+      item.style.transition = 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)';
+      item.style.boxShadow = '';
+    }
+  });
+}
+
+async function saveNewGroceryOrder(newIndex) {
+  try {
+    const draggedGrocery = groceries.find(g => g.id === draggedGroceryId);
+    if (!draggedGrocery) return;
+    
+    // Calculate new order based on position
+    let newOrder;
+    const SPACING = 1000;
+    
+    if (newIndex === 0) {
+      // Moving to the beginning
+      const firstGrocery = groceries[0];
+      newOrder = firstGrocery ? (firstGrocery.order || 0) - SPACING : SPACING;
+    } else if (newIndex >= groceries.length) {
+      // Moving to the end
+      const lastGrocery = groceries[groceries.length - 1];
+      newOrder = (lastGrocery.order || 0) + SPACING;
+    } else {
+      // Moving between items
+      let beforeIndex, afterIndex;
+      
+      if (draggedGroceryIndex < newIndex) {
+        // Moving down
+        beforeIndex = newIndex - 1;
+        afterIndex = newIndex;
+      } else {
+        // Moving up
+        beforeIndex = newIndex - 1;
+        afterIndex = newIndex;
+      }
+      
+      const beforeGrocery = beforeIndex >= 0 ? groceries[beforeIndex] : null;
+      const afterGrocery = afterIndex < groceries.length ? groceries[afterIndex] : null;
+      
+      const beforeOrder = beforeGrocery ? (beforeGrocery.order || 0) : 0;
+      const afterOrder = afterGrocery ? (afterGrocery.order || 0) : (beforeOrder + SPACING);
+      
+      const gap = afterOrder - beforeOrder;
+      if (gap <= 1) {
+        await rebalanceGroceryOrders();
+        return saveNewGroceryOrder(newIndex);
+      }
+      
+      newOrder = beforeOrder + (gap / 2);
+    }
+    
+    // Update in Firestore
+    const groceryRef = doc(db, 'groceries', draggedGroceryId);
+    await updateDoc(groceryRef, { order: newOrder });
+    
+    // Update local state
+    const groceryIndex = groceries.findIndex(g => g.id === draggedGroceryId);
+    if (groceryIndex !== -1) {
+      groceries[groceryIndex].order = newOrder;
+    }
+    
+    // Re-render
+    renderGroceries();
+  } catch (error) {
+    console.error('Error saving new grocery order:', error);
+    resetGroceryPreviewOrder();
+  }
+}
+
+async function rebalanceGroceryOrders() {
+  try {
+    const currentGroup = getCurrentGroup();
+    const sortedGroceries = groceries
+      .filter(grocery => {
+        if (currentGroupId === 'personal') {
+          return !grocery.groupId || grocery.groupId === 'personal';
+        }
+        return grocery.groupId === currentGroupId;
+      })
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const SPACING = 1000;
+    for (let i = 0; i < sortedGroceries.length; i++) {
+      const newOrder = (i + 1) * SPACING;
+      const groceryRef = doc(db, 'groceries', sortedGroceries[i].id);
+      await updateDoc(groceryRef, { order: newOrder });
+      
+      // Update local state
+      const localIndex = groceries.findIndex(g => g.id === sortedGroceries[i].id);
+      if (localIndex !== -1) {
+        groceries[localIndex].order = newOrder;
+      }
+    }
+  } catch (error) {
+    console.error('Error rebalancing grocery orders:', error);
+  }
+}
 
 async function reorderTodos(draggedId, targetId) {
   try {
@@ -4890,6 +5490,7 @@ async function reorderTodos(draggedId, targetId) {
     
     // Calculate proper order value based on drop position
     let newOrder;
+    const SPACING = 1000; // Large spacing to avoid precision issues
     
     if (draggedIndex < targetIndex) {
       // Moving down: place after target
@@ -4898,10 +5499,17 @@ async function reorderTodos(draggedId, targetId) {
         // Insert between target and next item
         const targetOrder = currentTodos[targetIndex].order || 0;
         const nextOrder = currentTodos[nextIndex].order || 0;
-        newOrder = (targetOrder + nextOrder) / 2;
+        const gap = nextOrder - targetOrder;
+        
+        // If gap is too small, rebalance the entire list
+        if (gap <= 1) {
+          await rebalanceTodoOrders();
+          return reorderTodos(draggedId, targetId); // Retry after rebalancing
+        }
+        newOrder = Math.floor((targetOrder + nextOrder) / 2);
       } else {
         // Insert at the end
-        newOrder = (currentTodos[targetIndex].order || 0) + 1000;
+        newOrder = (currentTodos[targetIndex].order || 0) + SPACING;
       }
     } else {
       // Moving up: place before target
@@ -4910,10 +5518,17 @@ async function reorderTodos(draggedId, targetId) {
         // Insert between previous and target item
         const prevOrder = currentTodos[prevIndex].order || 0;
         const targetOrder = currentTodos[targetIndex].order || 0;
-        newOrder = (prevOrder + targetOrder) / 2;
+        const gap = targetOrder - prevOrder;
+        
+        // If gap is too small, rebalance the entire list
+        if (gap <= 1) {
+          await rebalanceTodoOrders();
+          return reorderTodos(draggedId, targetId); // Retry after rebalancing
+        }
+        newOrder = Math.floor((prevOrder + targetOrder) / 2);
       } else {
         // Insert at the beginning
-        newOrder = (currentTodos[targetIndex].order || 0) - 1000;
+        newOrder = (currentTodos[targetIndex].order || 0) - SPACING;
       }
     }
     
@@ -4925,6 +5540,27 @@ async function reorderTodos(draggedId, targetId) {
     
   } catch (error) {
     console.error('Error reordering todos:', error);
+  }
+}
+
+// Rebalance todo orders when they get too close together
+async function rebalanceTodoOrders() {
+  try {
+    const currentTodos = getFilteredTodos();
+    const SPACING = 1000;
+    
+    const updatePromises = currentTodos.map((todo, index) => {
+      const newOrder = index * SPACING;
+      return updateDoc(doc(db, 'todos', todo.id), {
+        order: newOrder,
+        updatedAt: serverTimestamp()
+      });
+    });
+    
+    await Promise.all(updatePromises);
+    console.log('Rebalanced todo orders');
+  } catch (error) {
+    console.error('Error rebalancing todo orders:', error);
   }
 }
 
@@ -4968,144 +5604,6 @@ function getFilteredTodos() {
   });
 }
 
-// Grocery drag and drop functionality
-let draggedGroceryId = null;
-
-window.handleGroceryDragStart = (event) => {
-  draggedGroceryId = event.target.getAttribute('data-grocery-id');
-  event.target.style.opacity = '0.5';
-  event.dataTransfer.effectAllowed = 'move';
-};
-
-window.handleGroceryDragOver = (event) => {
-  event.preventDefault();
-  event.dataTransfer.dropEffect = 'move';
-  
-  const draggedElement = event.currentTarget;
-  const targetId = draggedElement.getAttribute('data-grocery-id');
-  
-  if (targetId !== draggedGroceryId) {
-    // Clear previous indicators
-    document.querySelectorAll('[data-grocery-id]').forEach(item => {
-      item.style.borderTop = '';
-      item.style.borderBottom = '';
-      item.style.backgroundColor = '';
-      item.style.transform = '';
-    });
-    
-    // Get mouse position within the element
-    const rect = draggedElement.getBoundingClientRect();
-    const mouseY = event.clientY - rect.top;
-    const elementHeight = rect.height;
-    const isUpperHalf = mouseY < elementHeight / 2;
-    
-    // Show insertion line and lift effect
-    if (isUpperHalf) {
-      draggedElement.style.borderTop = '3px solid #10b981';
-      draggedElement.style.boxShadow = '0 -2px 8px rgba(16, 185, 129, 0.3)';
-    } else {
-      draggedElement.style.borderBottom = '3px solid #10b981';
-      draggedElement.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
-    }
-    
-    // Highlight the drop zone
-    draggedElement.style.backgroundColor = isDarkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)';
-    draggedElement.style.transform = 'scale(1.02)';
-    draggedElement.style.transition = 'all 0.2s ease';
-  }
-};
-
-window.handleGroceryDragLeave = (event) => {
-  const draggedElement = event.currentTarget;
-  // Only clear if we're actually leaving the element (not entering a child)
-  if (!draggedElement.contains(event.relatedTarget)) {
-    draggedElement.style.borderTop = '';
-    draggedElement.style.borderBottom = '';
-    draggedElement.style.backgroundColor = '';
-    draggedElement.style.transform = '';
-    draggedElement.style.boxShadow = '';
-  }
-};
-
-window.handleGroceryDrop = async (event) => {
-  event.preventDefault();
-  
-  const targetGroceryId = event.currentTarget.getAttribute('data-grocery-id');
-  const draggedElement = event.currentTarget;
-  
-  // Remove visual feedback
-  draggedElement.style.borderTop = '';
-  draggedElement.style.borderBottom = '';
-  draggedElement.style.backgroundColor = '';
-  draggedElement.style.transform = '';
-  draggedElement.style.boxShadow = '';
-  
-  if (targetGroceryId && draggedGroceryId && targetGroceryId !== draggedGroceryId) {
-    await reorderGroceries(draggedGroceryId, targetGroceryId);
-  }
-};
-
-window.handleGroceryDragEnd = (event) => {
-  event.target.style.opacity = '1';
-  
-  // Remove visual feedback from all items
-  document.querySelectorAll('[data-grocery-id]').forEach(item => {
-    item.style.borderTop = '';
-    item.style.borderBottom = '';
-    item.style.backgroundColor = '';
-    item.style.transform = '';
-    item.style.boxShadow = '';
-    item.style.transition = '';
-  });
-  
-  draggedGroceryId = null;
-};
-
-async function reorderGroceries(draggedId, targetId) {
-  try {
-    const draggedIndex = groceries.findIndex(g => g.id === draggedId);
-    const targetIndex = groceries.findIndex(g => g.id === targetId);
-    
-    if (draggedIndex === -1 || targetIndex === -1) return;
-    
-    // Calculate proper order value based on drop position
-    let newOrder;
-    
-    if (draggedIndex < targetIndex) {
-      // Moving down: place after target
-      const nextIndex = targetIndex + 1;
-      if (nextIndex < groceries.length) {
-        // Insert between target and next item
-        const targetOrder = groceries[targetIndex].order || 0;
-        const nextOrder = groceries[nextIndex].order || 0;
-        newOrder = (targetOrder + nextOrder) / 2;
-      } else {
-        // Insert at the end
-        newOrder = (groceries[targetIndex].order || 0) + 1000;
-      }
-    } else {
-      // Moving up: place before target
-      const prevIndex = targetIndex - 1;
-      if (prevIndex >= 0) {
-        // Insert between previous and target item
-        const prevOrder = groceries[prevIndex].order || 0;
-        const targetOrder = groceries[targetIndex].order || 0;
-        newOrder = (prevOrder + targetOrder) / 2;
-      } else {
-        // Insert at the beginning
-        newOrder = (groceries[targetIndex].order || 0) - 1000;
-      }
-    }
-    
-    await updateDoc(doc(db, 'groceries', draggedId), {
-      order: newOrder,
-      updatedAt: serverTimestamp()
-    });
-    
-  } catch (error) {
-    console.error('Error reordering groceries:', error);
-  }
-}
 
 async function addGrocery() {
   const textInput = document.getElementById('groceryInput');
@@ -5118,6 +5616,9 @@ async function addGrocery() {
       const currentGroup = getCurrentGroup();
       const isPrivate = document.getElementById('groceryPrivacyToggle')?.checked || false;
       
+      // Calculate order for new grocery (add at the end)
+      const maxOrder = groceries.length > 0 ? Math.max(...groceries.map(g => g.order || 0)) : 0;
+      
       await addDoc(collection(db, 'groceries'), {
         text: text,
         quantity: quantity,
@@ -5125,6 +5626,7 @@ async function addGrocery() {
         userId: currentUser.uid,
         groupId: currentGroupId === 'personal' ? null : currentGroupId,
         isPrivate: isPrivate && currentGroupId !== 'personal',
+        order: maxOrder + 1000, // Add at the end with spacing
         createdAt: serverTimestamp()
       });
       textInput.value = '';
@@ -5188,47 +5690,53 @@ function renderTodos() {
   const textColor = isDarkMode ? '#ffffff' : '#333333';
   const secondaryTextColor = isDarkMode ? '#b3b3b3' : '#666666';
   
-  todosList.innerHTML = filteredTodos.map(todo => {
-    const getCategoryColor = (category) => {
-      const defaultColors = {
-        personal: '#4caf50',
-        work: '#2196f3', 
-        urgent: '#ff5722'
-      };
-      
-      // Check if it's a default category
-      if (defaultColors[category]) {
-        return defaultColors[category];
-      }
-      
-      // Check if it's a custom tag
-      const customTag = tags.find(tag => tag.name === category);
-      if (customTag) {
-        return customTag.color;
-      }
-      
-      return '#667eea';
+  const getCategoryColor = (category) => {
+    const defaultColors = {
+      personal: '#4caf50',
+      work: '#2196f3', 
+      urgent: '#ff5722'
     };
     
-    const priorityColors = {
-      low: '#4caf50',
-      medium: '#ff9800',
-      high: '#f44336'
-    };
+    // Check if it's a default category
+    if (defaultColors[category]) {
+      return defaultColors[category];
+    }
     
+    // Check if it's a custom tag
+    const customTag = tags.find(tag => tag.name === category);
+    if (customTag) {
+      return customTag.color;
+    }
+    
+    return '#667eea';
+  };
+  
+  const priorityColors = {
+    low: '#4caf50',
+    medium: '#ff9800',
+    high: '#f44336'
+  };
+  
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
+    return d.toLocaleDateString();
+  };
+  
+  // Create HTML with sortable items (no drop zones)
+  let html = '';
+  
+  filteredTodos.forEach((todo, index) => {
     const categoryColor = getCategoryColor(todo.category);
     const priorityColor = priorityColors[todo.priority] || '#ff9800';
     
-    const formatDate = (date) => {
-      if (!date) return null;
-      const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
-      return d.toLocaleDateString();
-    };
-    
-    return `
+    // Add the todo item with drag handle
+    html += `
       <div 
+        class="todo-item"
         draggable="true"
         data-todo-id="${todo.id}"
+        data-original-index="${index}"
         style="
           display: flex;
           align-items: flex-start;
@@ -5238,19 +5746,18 @@ function renderTodos() {
           border-radius: 16px;
           border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
           box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
-          transition: all 0.2s ease;
-          margin-bottom: 12px;
-          cursor: move;
+          transition: all 0.3s ease;
+          margin-bottom: 8px;
+          transform: translateY(0px);
+          cursor: grab;
         " 
-        onmouseover="this.style.transform='translateY(-2px)'" 
-        onmouseout="this.style.transform='translateY(0)'"
-        ondragstart="handleTodoDragStart(event)"
-        ondragover="handleTodoDragOver(event)"
-        ondragleave="handleTodoDragLeave(event)"
-        ondrop="handleTodoDrop(event)"
-        ondragend="handleTodoDragEnd(event)">
+        onmouseover="if (!draggedTodoId) this.style.transform='translateY(-2px)'" 
+        onmouseout="if (!draggedTodoId && !this.classList.contains('dragging')) this.style.transform='translateY(0px)'"
+        ondragstart="handleTodoDragStart(event, '${todo.id}', ${index});"
+        ondragend="handleTodoDragEnd(event);"
+        title="Drag to reorder">
         
-        <button onclick="toggleTodo('${todo.id}')" style="
+        <button draggable="false" onclick="toggleTodo('${todo.id}')" style="
           width: 28px;
           height: 28px;
           border-radius: 14px;
@@ -5326,7 +5833,7 @@ function renderTodos() {
         </div>
         
         <div style="display: flex; gap: 4px; margin-left: 8px;">
-          <button onclick="editTodo('${todo.id}')" style="
+          <button draggable="false" onclick="editTodo('${todo.id}')" style="
             width: 32px;
             height: 32px;
             border: none;
@@ -5340,8 +5847,8 @@ function renderTodos() {
             display: flex;
             align-items: center;
             justify-content: center;
-          " onmouseover="this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'" onmouseout="this.style.background='none'">✏️</button>
-          <button onclick="deleteTodo('${todo.id}')" style="
+          " onmouseover="if (!draggedTodoId) this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'" onmouseout="if (!draggedTodoId) this.style.background='none'">✏️</button>
+          <button draggable="false" onclick="deleteTodo('${todo.id}')" style="
             width: 32px;
             height: 32px;
             border: none;
@@ -5355,12 +5862,39 @@ function renderTodos() {
             display: flex;
             align-items: center;
             justify-content: center;
-          " onmouseover="this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="this.style.background='none'">×</button>
+          " onmouseover="if (!draggedTodoId) this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="if (!draggedTodoId) this.style.background='none'">×</button>
         </div>
       </div>
     `;
-  }).join('');
+  });
+  
+  // Add a subtle drop zone at the end for dropping items at the bottom
+  html += `
+    <div 
+      class="bottom-drop-zone"
+      style="
+        height: 30px;
+        margin-top: 4px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        opacity: 0;
+        border: 1px solid transparent;
+      "
+      ondragover="handleBottomDropZoneDragOver(event)"
+      ondragleave="handleBottomDropZoneDragLeave(event)"
+      ondrop="handleBottomDropZoneDrop(event)">
+    </div>
+  `;
+  
+  todosList.innerHTML = html;
+  
+  // Add drag over listeners to todo items for real-time reordering
+  document.querySelectorAll('.todo-item').forEach(item => {
+    item.addEventListener('dragover', handleTodoItemDragOver);
+    item.addEventListener('dragleave', handleTodoItemDragLeave);
+  });
 }
+
 
 function renderGroceries() {
   const groceriesList = document.getElementById('groceriesList');
@@ -5383,30 +5917,35 @@ function renderGroceries() {
     return 0;
   });
 
-  groceriesList.innerHTML = sortedGroceries.map(grocery => `
+  // Create HTML with sortable items (no drop zones)
+  let html = '';
+  
+  sortedGroceries.forEach((grocery, index) => {
+    html += `
     <div 
+      class="grocery-item"
       draggable="true"
       data-grocery-id="${grocery.id}"
+      data-original-index="${index}"
       style="
         display: flex;
         align-items: center;
         background-color: ${isDarkMode ? 'rgba(40, 40, 40, 0.95)' : 'white'};
         padding: 15px;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         border-radius: 12px;
         border: 1px solid ${isDarkMode ? '#404040' : '#e2e8f0'};
         box-shadow: 0 4px 16px rgba(0, 0, 0, ${isDarkMode ? '0.3' : '0.1'});
-        cursor: move;
-        transition: all 0.2s ease;
+        cursor: grab;
+        transition: all 0.3s ease;
+        transform: translateY(0px);
       "
-      onmouseover="this.style.transform='translateY(-2px)'" 
-      onmouseout="this.style.transform='translateY(0)'"
-      ondragstart="handleGroceryDragStart(event)"
-      ondragover="handleGroceryDragOver(event)"
-      ondragleave="handleGroceryDragLeave(event)"
-      ondrop="handleGroceryDrop(event)"
-      ondragend="handleGroceryDragEnd(event)">
-      <button onclick="toggleGrocery('${grocery.id}')" style="
+      onmouseover="if (!draggedGroceryId) this.style.transform='translateY(-2px)'" 
+      onmouseout="if (!draggedGroceryId && !this.classList.contains('dragging')) this.style.transform='translateY(0px)'"
+      ondragstart="handleGroceryDragStart(event, '${grocery.id}', ${index});"
+      ondragend="handleGroceryDragEnd(event);"
+      title="Drag to reorder">
+      <button draggable="false" onclick="toggleGrocery('${grocery.id}')" style="
         width: 24px;
         height: 24px;
         border-radius: 12px;
@@ -5430,7 +5969,7 @@ function renderGroceries() {
         ">Qty: ${grocery.quantity}</div>
       </div>
       
-      <button onclick="deleteGrocery('${grocery.id}')" style="
+      <button draggable="false" onclick="deleteGrocery('${grocery.id}')" style="
         width: 30px;
         height: 30px;
         border: none;
@@ -5441,7 +5980,34 @@ function renderGroceries() {
         cursor: pointer;
       ">×</button>
     </div>
-  `).join('');
+    `;
+  });
+  
+  // Add a subtle drop zone at the end for dropping items at the bottom
+  html += `
+    <div 
+      class="bottom-drop-zone-grocery"
+      style="
+        height: 30px;
+        margin-top: 4px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        opacity: 0;
+        border: 1px solid transparent;
+      "
+      ondragover="handleBottomDropZoneGroceryDragOver(event)"
+      ondragleave="handleBottomDropZoneGroceryDragLeave(event)"
+      ondrop="handleBottomDropZoneGroceryDrop(event)">
+    </div>
+  `;
+  
+  groceriesList.innerHTML = html;
+  
+  // Add drag over listeners to grocery items for real-time reordering
+  document.querySelectorAll('.grocery-item').forEach(item => {
+    item.addEventListener('dragover', handleGroceryItemDragOver);
+    item.addEventListener('dragleave', handleGroceryItemDragLeave);
+  });
 }
 
 function renderEvents() {
