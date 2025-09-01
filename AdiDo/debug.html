@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AdiDo Debug</title>
+</head>
+<body>
+    <div id="debug">Loading...</div>
+    <script>
+        console.log('Debug script running');
+        
+        // Test if the main script loads
+        try {
+            document.getElementById('debug').innerHTML = 'Debug loaded successfully';
+            console.log('Basic HTML/JS working');
+            
+            // Test Firebase
+            if (typeof firebase !== 'undefined') {
+                console.log('Firebase available');
+            } else {
+                console.log('Firebase not available');
+            }
+            
+        } catch (error) {
+            console.error('Debug error:', error);
+            document.getElementById('debug').innerHTML = 'Error: ' + error.message;
+        }
+    </script>
+    
+    <!-- Load your main bundle -->
+    <script src="./dist/bundle.a4fb0680e067ea902afa.8bfe48d0c35f735d66c8.js"></script>
+</body>
+</html>

@@ -4858,6 +4858,11 @@ window.handleTodoDragStart = (event, todoId, originalIndex) => {
   
   event.dataTransfer.effectAllowed = 'move';
   
+  // Make the dragged item invisible/picked up
+  draggedElement.style.opacity = '0';
+  draggedElement.style.transform = 'scale(0.8)';
+  draggedElement.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+  
   // Create a clone of the actual item for drag image
   const dragImage = draggedElement.cloneNode(true);
   dragImage.style.cssText = `
@@ -4982,8 +4987,9 @@ window.handleTodoDragEnd = (event) => {
   
   // Restore the dragged item visibility
   if (draggedElement) {
+    draggedElement.style.opacity = '1';
+    draggedElement.style.transform = 'scale(1)';
     draggedElement.classList.remove('dragging');
-    // Don't modify inline styles - let CSS handle the appearance
   }
   
   // Hide the bottom drop zone
@@ -5191,6 +5197,11 @@ window.handleGroceryDragStart = (event, groceryId, originalIndex) => {
   
   event.dataTransfer.effectAllowed = 'move';
   
+  // Make the dragged item invisible/picked up
+  draggedGroceryElement.style.opacity = '0';
+  draggedGroceryElement.style.transform = 'scale(0.8)';
+  draggedGroceryElement.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+  
   // Create a clone of the actual item for drag image
   const dragImage = draggedGroceryElement.cloneNode(true);
   dragImage.style.cssText = `
@@ -5315,6 +5326,8 @@ window.handleGroceryDragEnd = (event) => {
   
   // Restore the dragged item visibility
   if (draggedGroceryElement) {
+    draggedGroceryElement.style.opacity = '1';
+    draggedGroceryElement.style.transform = 'scale(1)';
     draggedGroceryElement.classList.remove('dragging');
     // Don't modify inline styles - let CSS handle the appearance
   }

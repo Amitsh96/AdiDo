@@ -19,7 +19,8 @@
       "Bash(npm start)",
       "Bash(python:*)",
       "Bash(npx serve:*)",
-      "Bash(npx webpack:*)"
+      "Bash(npx webpack:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
