@@ -77,6 +77,16 @@ function closeGroupSwitcher() {
   document.getElementById('groupSwitcherModal').style.display = 'none';
 }
 
+// Group details functions
+function openGroupDetails() {
+  renderGroupDetails();
+  document.getElementById('groupDetailsModal').style.display = 'flex';
+}
+
+function closeGroupDetails() {
+  document.getElementById('groupDetailsModal').style.display = 'none';
+}
+
 function renderGroupsList() {
   const groupsList = document.getElementById('groupsList');
   if (!groupsList) return;
@@ -258,31 +268,6 @@ function renderGroupsList() {
         </div>
         
         <div style="display: flex; align-items: center; gap: 8px;">
-          ${canInvite ? `
-            <button onclick="event.stopPropagation(); showInviteCode('${group.id}', '${group.inviteCode || ''}')" style="
-              padding: 6px 12px;
-              background: ${isActive ? 'rgba(255,255,255,0.2)' : 'rgba(102, 126, 234, 0.1)'};
-              color: ${isActive ? 'white' : '#667eea'};
-              border: 1px solid ${isActive ? 'rgba(255,255,255,0.3)' : '#667eea'};
-              border-radius: 6px;
-              font-size: 11px;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-              margin-right: 4px;
-            " title="Share invite code">📤</button>
-            <button onclick="event.stopPropagation(); showMemberManagement('${group.id}')" style="
-              padding: 6px 12px;
-              background: ${isActive ? 'rgba(255,255,255,0.2)' : 'rgba(239, 68, 68, 0.1)'};
-              color: ${isActive ? 'white' : '#ef4444'};
-              border: 1px solid ${isActive ? 'rgba(255,255,255,0.3)' : '#ef4444'};
-              border-radius: 6px;
-              font-size: 11px;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-            " title="Manage members">👥</button>
-          ` : ''}
           ${isActive ? '<span style="font-size: 16px; margin-left: 8px;">✓</span>' : ''}
         </div>
         
@@ -1253,6 +1238,227 @@ function setupRealtimeListeners() {
 }
 
 // Load groups from Firebase
+function renderGroupDetails() {
+  const currentGroup = getCurrentGroup();
+  const groupDetailsContent = document.getElementById('groupDetailsContent');
+  if (!groupDetailsContent) return;
+  
+  const isOwner = currentGroup.members?.some(m => m.userId === currentUser?.uid && m.role === 'owner');
+  const isCoOwner = currentGroup.members?.some(m => m.userId === currentUser?.uid && m.role === 'co-owner');
+  const canManage = isOwner || isCoOwner;
+  
+  const members = currentGroup.members || [];
+  const memberCount = members.length;
+  
+  groupDetailsContent.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h3 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Group Details</h3>
+      <button id="closeGroupDetails" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        cursor: pointer;
+        font-size: 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+      " onclick="closeGroupDetails()">×</button>
+    </div>
+    
+    <!-- Group Info -->
+    <div style="
+      background: ${isDarkMode ? 'rgba(51, 65, 85, 0.5)' : 'rgba(248, 250, 252, 0.8)'};
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+    ">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+        <span style="font-size: 32px;">${currentGroup.emoji}</span>
+        <div>
+          <h4 style="
+            color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+          ">${currentGroup.name}</h4>
+          <p style="
+            color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+            margin: 0;
+            font-size: 14px;
+          ">${currentGroup.type === 'personal' ? 'Personal Space' : 'Shared Group'}</p>
+        </div>
+      </div>
+      ${currentGroup.description ? `
+        <p style="
+          color: ${isDarkMode ? '#cbd5e1' : '#475569'};
+          margin: 8px 0;
+          font-size: 14px;
+        ">${currentGroup.description}</p>
+      ` : ''}
+    </div>
+    
+    <!-- Members Section -->
+    <div style="margin-bottom: 24px;">
+      <div style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      ">
+        <h4 style="
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          margin: 0;
+          font-size: 18px;
+          font-weight: 600;
+        ">Members (${memberCount})</h4>
+        ${canManage && currentGroup.type !== 'personal' ? `
+          <button id="inviteMemberBtn" style="
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+          ">+ Invite</button>
+        ` : ''}
+      </div>
+      
+      <div id="membersList">
+        ${members.map(member => {
+          const isCurrentUser = member.userId === currentUser?.uid;
+          const avatarText = getUserAvatar(member);
+          const avatarColor = getAvatarColor(member.userId);
+          const roleIcon = {
+            'owner': '👑',
+            'co-owner': '⭐',
+            'member': '👤'
+          }[member.role] || '👤';
+          
+          return `
+            <div style="
+              display: flex;
+              align-items: center;
+              padding: 12px;
+              background: ${isDarkMode ? 'rgba(51, 65, 85, 0.3)' : 'rgba(248, 250, 252, 0.6)'};
+              border-radius: 12px;
+              margin-bottom: 8px;
+            ">
+              <div style="
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: ${avatarColor}20;
+                border: 2px solid ${avatarColor};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+                font-weight: 600;
+                color: ${avatarColor};
+                margin-right: 12px;
+              ">${avatarText}</div>
+              
+              <div style="flex: 1;">
+                <div style="
+                  color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+                  font-weight: 600;
+                  font-size: 14px;
+                ">${member.name || member.email}${isCurrentUser ? ' (You)' : ''}</div>
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  margin-top: 2px;
+                ">
+                  <span style="font-size: 12px;">${roleIcon}</span>
+                  <span style="
+                    color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+                    font-size: 12px;
+                    text-transform: capitalize;
+                  ">${member.role.replace('-', ' ')}</span>
+                </div>
+              </div>
+              
+              ${canManage && !isCurrentUser && currentGroup.type !== 'personal' ? `
+                <div style="display: flex; gap: 4px;">
+                  ${isOwner && member.role === 'member' ? `
+                    <button onclick="promoteMember('${currentGroup.id}', '${member.userId}', '${member.name || member.email}')" style="
+                      padding: 6px 12px;
+                      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                      color: white;
+                      border: none;
+                      border-radius: 6px;
+                      font-size: 12px;
+                      font-weight: 600;
+                      cursor: pointer;
+                    ">Make Co-owner</button>
+                  ` : ''}
+                  ${isOwner && member.role === 'co-owner' ? `
+                    <button onclick="demoteMember('${currentGroup.id}', '${member.userId}', '${member.name || member.email}')" style="
+                      padding: 6px 12px;
+                      background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+                      color: white;
+                      border: none;
+                      border-radius: 6px;
+                      font-size: 12px;
+                      font-weight: 600;
+                      cursor: pointer;
+                    ">Remove Co-owner</button>
+                  ` : ''}
+                  <button onclick="removeMember('${currentGroup.id}', '${member.userId}', '${member.name || member.email}')" style="
+                    padding: 6px 12px;
+                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+                  ">Remove</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  
+  // Add event listener for close button click outside modal
+  document.getElementById('groupDetailsModal').addEventListener('click', (e) => {
+    if (e.target.id === 'groupDetailsModal') {
+      closeGroupDetails();
+    }
+  });
+
+  // Add event listener for close button
+  const closeBtn = document.getElementById('closeGroupDetails');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeGroupDetails);
+  }
+
+  // Add event listener for invite button
+  const inviteBtn = document.getElementById('inviteMemberBtn');
+  if (inviteBtn) {
+    inviteBtn.addEventListener('click', () => {
+      showInviteCodeModal(currentGroup);
+    });
+  }
+}
+
 async function loadUserGroups() {
   if (!currentUser) return;
   
@@ -2292,6 +2498,252 @@ async function deleteGroup(groupId) {
   }
 }
 
+// Promote member to co-owner (owner only)
+async function promoteMember(groupId, userId, memberName) {
+  if (!confirm(`Promote ${memberName} to co-owner? This will allow them to invite new members to the group.`)) return;
+  
+  try {
+    const group = groups.find(g => g.id === groupId);
+    const updatedMembers = group.members.map(member => 
+      member.userId === userId ? {...member, role: 'co-owner'} : member
+    );
+    
+    await updateDoc(doc(db, 'Groups', groupId), {
+      members: updatedMembers
+    });
+    
+    // Update local data
+    const groupIndex = groups.findIndex(g => g.id === groupId);
+    if (groupIndex !== -1) {
+      groups[groupIndex].members = updatedMembers;
+    }
+    
+    showSuccessMessage(`${memberName} promoted to co-owner!`);
+    
+    // Refresh the group details
+    renderGroupDetails();
+    
+  } catch (error) {
+    console.error('Error promoting member:', error);
+    alert('Error promoting member. Please try again.');
+  }
+}
+
+// Demote co-owner to member (owner only)
+async function demoteMember(groupId, userId, memberName) {
+  if (!confirm(`Remove co-owner status from ${memberName}? They will become a regular member.`)) return;
+  
+  try {
+    const group = groups.find(g => g.id === groupId);
+    const updatedMembers = group.members.map(member => 
+      member.userId === userId ? {...member, role: 'member'} : member
+    );
+    
+    await updateDoc(doc(db, 'Groups', groupId), {
+      members: updatedMembers
+    });
+    
+    // Update local data
+    const groupIndex = groups.findIndex(g => g.id === groupId);
+    if (groupIndex !== -1) {
+      groups[groupIndex].members = updatedMembers;
+    }
+    
+    showSuccessMessage(`${memberName} is now a regular member.`);
+    
+    // Refresh the group details
+    renderGroupDetails();
+    
+  } catch (error) {
+    console.error('Error demoting member:', error);
+    alert('Error updating member role. Please try again.');
+  }
+}
+
+// Copy invite code to clipboard
+async function copyInviteCode(inviteCode) {
+  try {
+    await navigator.clipboard.writeText(inviteCode);
+    showSuccessMessage('Invite code copied to clipboard!');
+  } catch (error) {
+    console.error('Error copying to clipboard:', error);
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = inviteCode;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    showSuccessMessage('Invite code copied to clipboard!');
+  }
+}
+
+// Show invite code modal for co-owners and owners
+function showInviteCodeModal(group) {
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'inviteCodeModalOverlay';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80%;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Invite Members</h2>
+      <button id="closeInviteModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        cursor: pointer;
+        font-size: 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <div style="
+      background: ${isDarkMode ? 'rgba(51, 65, 85, 0.5)' : 'rgba(248, 250, 252, 0.8)'};
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      text-align: center;
+    ">
+      <div style="
+        font-size: 48px;
+        margin-bottom: 16px;
+      ">${group.emoji}</div>
+      <h3 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0 0 8px 0;
+        font-size: 20px;
+        font-weight: 600;
+      ">${group.name}</h3>
+      <p style="
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        margin: 0;
+        font-size: 14px;
+      ">Share this invite code with people you want to add to the group</p>
+    </div>
+    
+    <div style="
+      background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      text-align: center;
+    ">
+      <label style="
+        color: ${isDarkMode ? '#cbd5e1' : '#475569'};
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: block;
+        margin-bottom: 8px;
+      ">Group Invite Code</label>
+      <div style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        font-family: monospace;
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        padding: 12px;
+        background: ${isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.8)'};
+        border-radius: 8px;
+        border: 2px dashed ${isDarkMode ? '#475569' : '#cbd5e1'};
+      ">${group.inviteCode}</div>
+      <button onclick="copyInviteCode('${group.inviteCode}')" style="
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        width: 100%;
+      ">📋 Copy Invite Code</button>
+    </div>
+    
+    <div style="
+      color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.5;
+    ">
+      <p style="margin: 0 0 8px 0;">📱 <strong>How to use:</strong></p>
+      <p style="margin: 0;">Send this code to friends. They can join by clicking "Join Group" and entering this code.</p>
+    </div>
+  `;
+
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+
+  // Animation
+  setTimeout(() => {
+    modalOverlay.style.opacity = '1';
+    modal.style.transform = 'scale(1)';
+  }, 10);
+
+  function closeModal() {
+    modalOverlay.style.opacity = '0';
+    modal.style.transform = 'scale(0.9)';
+    setTimeout(() => {
+      if (document.body.contains(modalOverlay)) {
+        document.body.removeChild(modalOverlay);
+      }
+    }, 300);
+  }
+
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+
+  document.getElementById('closeInviteModal').addEventListener('click', closeModal);
+}
+
 // Make functions available globally
 window.closeGroupSwitcher = closeGroupSwitcher;
 window.selectGroup = selectGroup;
@@ -2299,6 +2751,10 @@ window.showInviteCode = showInviteCode;
 window.showMemberManagement = showMemberManagement;
 window.changeMemberRole = changeMemberRole;
 window.removeMember = removeMember;
+window.promoteMember = promoteMember;
+window.demoteMember = demoteMember;
+window.copyInviteCode = copyInviteCode;
+window.showInviteCodeModal = showInviteCodeModal;
 
 
 
@@ -4014,18 +4470,32 @@ function loadTabContent(tab) {
               font-size: 14px;
             ">${getGroupDisplayName(getCurrentGroup())}</p>
           </div>
-          <button id="switchGroupBtn" style="
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-          ">Switch Group</button>
+          <div style="display: flex; gap: 8px;">
+            <button id="groupDetailsBtn" style="
+              padding: 8px 16px;
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+            ">👥 Details</button>
+            <button id="switchGroupBtn" style="
+              padding: 8px 16px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            ">Switch Group</button>
+          </div>
         </div>
         
         <!-- Group Switcher Modal -->
@@ -4170,6 +4640,34 @@ function loadTabContent(tab) {
           justify-content: center;
         ">Sign Out</button>
       </div>
+      
+      <!-- Group Details Modal -->
+      <div id="groupDetailsModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div id="groupDetailsContent" style="
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 600px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <!-- Content will be dynamically inserted here by renderGroupDetails() -->
+        </div>
+      </div>
     `;
     
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -4190,6 +4688,7 @@ function loadTabContent(tab) {
     
     // Setup group switching event listeners
     document.getElementById('switchGroupBtn').addEventListener('click', openGroupSwitcher);
+    document.getElementById('groupDetailsBtn').addEventListener('click', openGroupDetails);
     document.getElementById('createGroupBtn').addEventListener('click', openCreateGroupModal);
     document.getElementById('joinGroupBtn').addEventListener('click', openJoinGroupModal);
   }
@@ -5963,7 +6462,7 @@ function renderGroceries() {
         height: 24px;
         border-radius: 12px;
         border: 2px solid #34C759;
-        background-color: ${grocery.completed ? '#34C759' : 'white'};
+        background-color: ${grocery.completed ? '#34C759' : (isDarkMode ? 'transparent' : 'white')};
         color: white;
         margin-right: 15px;
         cursor: pointer;
