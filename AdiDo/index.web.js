@@ -1,9 +1,9 @@
 // Import Firebase directly
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'firebase/auth';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, serverTimestamp, getDocs, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 
-console.log('Loading AdiDo...');
+console.log('Loading AdiDo... (updated)');
 
 // Firebase configuration
 const firebaseConfig = {
@@ -22,6 +22,8 @@ const db = getFirestore(app);
 
 // Global state
 let currentUser = null;
+let firstName = '';
+let userProfiles = {}; // Store user profiles with emoji data
 let todos = [];
 let groceries = [];
 let events = [];
@@ -33,6 +35,22 @@ let filterCategory = 'all';
 let showAddTodoModal = false;
 let showTagModal = false;
 let editingTodo = null; // Todo currently being edited
+
+// Drag and drop variables
+let draggedTodoId = null;
+let draggedElement = null;
+let draggedIndex = null;
+let currentPreviewIndex = null;
+let todoItems = [];
+let draggedGroceryId = null;
+let draggedGroceryElement = null;
+let draggedGroceryIndex = null;
+let currentGroceryPreviewIndex = null;
+let groceryItems = [];
+
+// Make drag variables available globally for inline event handlers
+window.draggedTodoId = draggedTodoId;
+window.draggedGroceryId = draggedGroceryId;
 
 // Group management functions
 function getCurrentGroup() {
@@ -87,6 +105,36 @@ function closeGroupDetails() {
   document.getElementById('groupDetailsModal').style.display = 'none';
 }
 
+// Load user profiles for group members
+async function loadUserProfiles(groups) {
+  const userIds = new Set();
+  
+  // Collect all unique user IDs from all groups
+  groups.forEach(group => {
+    if (group.members) {
+      group.members.forEach(member => {
+        userIds.add(member.userId);
+      });
+    }
+  });
+  
+  // Load profiles for users we don't have cached
+  for (const userId of userIds) {
+    if (!userProfiles[userId]) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          userProfiles[userId] = userDoc.data();
+        }
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+      }
+    }
+  }
+}
+
+window.closeGroupDetails = closeGroupDetails;
+
 function renderGroupsList() {
   const groupsList = document.getElementById('groupsList');
   if (!groupsList) return;
@@ -123,40 +171,42 @@ function renderGroupsList() {
       const avatarText = getUserAvatar(member);
       const avatarColor = getAvatarColor(member.userId);
       const isCurrentUser = member.userId === currentUser?.uid;
+      const isEmoji = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(avatarText);
       
       return `
         <div style="
-          width: 24px;
-          height: 24px;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
-          background: ${avatarColor}20;
-          border: 2px solid ${avatarColor};
+          background: ${isEmoji ? 'transparent' : avatarColor + '20'};
+          border: 2px solid ${isEmoji ? 'transparent' : avatarColor};
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 10px;
+          font-size: ${isEmoji ? '18px' : '12px'};
           font-weight: 600;
-          color: ${avatarColor};
-          margin-left: -4px;
+          color: ${isEmoji ? 'inherit' : avatarColor};
+          margin-left: -6px;
           position: relative;
           z-index: ${isCurrentUser ? '10' : '1'};
-          ${isCurrentUser ? `box-shadow: 0 0 0 2px ${isActive ? 'rgba(255,255,255,0.5)' : avatarColor + '40'};` : ''}
+          ${isCurrentUser && !isEmoji ? `box-shadow: 0 0 0 2px ${isActive ? 'rgba(255,255,255,0.5)' : avatarColor + '40'};` : ''}
+          ${isCurrentUser && isEmoji ? `box-shadow: 0 0 0 3px ${isActive ? 'rgba(255,255,255,0.8)' : 'rgba(16, 185, 129, 0.6)'};` : ''}
         " title="${member.name || member.email}${isCurrentUser ? ' (You)' : ''}">${avatarText}</div>
       `;
     }).join('') + (remainingCount > 0 ? `
       <div style="
-        width: 24px;
-        height: 24px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         background: ${isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(148, 163, 184, 0.2)'};
         border: 2px solid ${isDarkMode ? '#64748b' : '#94a3b8'};
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 600;
         color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-        margin-left: -4px;
+        margin-left: -6px;
       ">+${remainingCount}</div>
     ` : '');
     
@@ -538,7 +588,7 @@ function openCreateGroupModal() {
           outline: none;
           box-sizing: border-box;
           resize: vertical;
-          font-family: inherit;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           transition: all 0.2s;
         " placeholder="Describe your group (optional)"></textarea>
       </div>
@@ -1211,6 +1261,12 @@ function setupRealtimeListeners() {
       console.log('Groups updated in real-time:', updatedGroups);
       groups = updatedGroups;
       
+      // Load user profiles for group members
+      loadUserProfiles(groups);
+      
+      // Apply group theme now that groups are loaded
+      applyGroupTheme();
+      
       // Refresh UI with correct group context now that groups are loaded
       const activeTab = document.querySelector('.nav-tab.active');
       if (activeTab) {
@@ -1357,17 +1413,17 @@ function renderGroupDetails() {
               margin-bottom: 8px;
             ">
               <div style="
-                width: 40px;
-                height: 40px;
+                width: 48px;
+                height: 48px;
                 border-radius: 50%;
-                background: ${avatarColor}20;
-                border: 2px solid ${avatarColor};
+                background: ${/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(avatarText) ? 'rgba(16, 185, 129, 0.1)' : avatarColor + '20'};
+                border: 2px solid ${/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(avatarText) ? 'rgba(16, 185, 129, 0.3)' : avatarColor};
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 14px;
+                font-size: ${/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(avatarText) ? '24px' : '16px'};
                 font-weight: 600;
-                color: ${avatarColor};
+                color: ${/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(avatarText) ? 'inherit' : avatarColor};
                 margin-right: 12px;
               ">${avatarText}</div>
               
@@ -1485,6 +1541,13 @@ async function loadUserGroups() {
 function getUserAvatar(user) {
   if (!user) return '👤';
   
+  // Check if we have the user's profile with emoji
+  const userProfile = userProfiles[user.userId];
+  if (userProfile && userProfile.avatarEmoji) {
+    return userProfile.avatarEmoji;
+  }
+  
+  // Fallback to initials
   const name = user.name || user.email || '';
   const initials = name
     .split(' ')
@@ -1722,6 +1785,14 @@ function applyGroupTheme() {
     /* Apply theme to key UI elements */
     .nav-tab.active {
       background: var(--group-gradient) !important;
+      color: white !important;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+    }
+    
+    .nav-tab:not(.active) {
+      background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)'} !important;
+      color: ${isDarkMode ? '#e2e8f0' : '#1a202c'} !important;
+      box-shadow: none !important;
     }
     
     .primary-btn {
@@ -1787,6 +1858,7 @@ function showSuccessMessage(message) {
     border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
     z-index: 10001;
     transform: translateX(400px);
@@ -2612,6 +2684,7 @@ function showInviteCodeModal(group) {
     border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
     transform: scale(0.9);
     transition: transform 0.3s ease;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
 
   modal.innerHTML = `
@@ -2744,6 +2817,714 @@ function showInviteCodeModal(group) {
   document.getElementById('closeInviteModal').addEventListener('click', closeModal);
 }
 
+// Password validation function
+function validatePassword(password) {
+  const hasNumber = /\d/.test(password);
+  const hasMinLength = password.length >= 6;
+  
+  return {
+    isValid: hasNumber && hasMinLength,
+    hasNumber,
+    hasMinLength,
+    errors: []
+  };
+}
+
+// Open edit profile modal
+function openEditProfileModal() {
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'editProfileModalOverlay';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80%;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h2 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Edit Profile</h2>
+      <button id="closeEditProfileModal" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        cursor: pointer;
+        font-size: 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+    
+    <form id="editProfileForm">
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">First Name</label>
+        <input type="text" id="firstNameInput" placeholder="Enter your first name" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
+          box-sizing: border-box;
+        ">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Last Name</label>
+        <input type="text" id="lastNameInput" placeholder="Enter your last name" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
+          box-sizing: border-box;
+        ">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Avatar</label>
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+        ">
+          <div id="selectedEmoji" style="
+            font-size: 48px;
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(0, 0, 0, 0.05)'};
+            border-radius: 50%;
+          ">👤</div>
+          <button type="button" id="changeEmojiBtn" style="
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+          ">Change Emoji</button>
+        </div>
+      </div>
+      
+      <!-- Emoji Picker Modal -->
+      <div id="emojiPickerModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          backdrop-filter: blur(20px);
+          border-radius: 16px;
+          width: 320px;
+          height: 400px;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          display: flex;
+          flex-direction: column;
+        ">
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 16px 12px;
+            border-bottom: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(0, 0, 0, 0.1)'};
+            flex-shrink: 0;
+          ">
+            <h3 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0;
+              font-size: 16px;
+              font-weight: 700;
+            ">Choose Avatar</h3>
+            <button id="closeEmojiPicker" style="
+              width: 28px;
+              height: 28px;
+              border: none;
+              background: none;
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              cursor: pointer;
+              font-size: 16px;
+              border-radius: 6px;
+              transition: all 0.2s;
+            ">×</button>
+          </div>
+          <div style="
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+          ">
+            <div style="
+              display: grid;
+              grid-template-columns: repeat(6, 1fr);
+              gap: 6px;
+              justify-items: center;
+            " id="emojiGrid">
+              ${(() => {
+                // Define base emojis grouped by category
+                const emojiCategories = {
+                  smileys: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'],
+                  people: ['👶', '🧒', '👦', '👧', '🧑', '👨', '👩', '🧓', '👴', '👵', '👱', '🧔', '👮', '👷', '💂', '🕵️', '👩‍⚕️', '👨‍⚕️', '👩‍🌾', '👨‍🌾', '👩‍🍳', '👨‍🍳', '👩‍🎓', '👨‍🎓', '👩‍🎤', '👨‍🎤', '👩‍🏫', '👨‍🏫', '👩‍🏭', '👨‍🏭', '👩‍💻', '👨‍💻', '👩‍💼', '👨‍💼', '👩‍🔧', '👨‍🔧', '👩‍🔬', '👨‍🔬', '👩‍🎨', '👨‍🎨', '👩‍🚒', '👨‍🚒', '👩‍✈️', '👨‍✈️', '👩‍🚀', '👨‍🚀', '👩‍⚖️', '👨‍⚖️', '🤴', '👸', '👳', '🧕', '🤵', '👰', '🤱', '🤰'],
+                  gestures: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🙏', '✍️', '💅', '🤳', '💪', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸'],
+                  activities: ['🏃', '🚶', '🧍', '🧎', '🏋️', '🤸', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎵', '🎶', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻'],
+                  animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🦍', '🦣', '🐘', '🦏', '🦛', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🦄', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🐓', '🦃', '🦅', '🦆', '🦢', '🦉', '🦚', '🦜'],
+                  objects: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️‍♀️', '🏋️‍♂️', '🤼‍♀️', '🤼‍♂️', '🤸‍♀️', '🤸‍♂️', '⛹️‍♀️', '⛹️‍♂️', '🤺', '🤾‍♀️', '🤾‍♂️', '🏌️‍♀️', '🏌️‍♂️', '🧘‍♀️', '🧘‍♂️', '🏄‍♀️', '🏄‍♂️']
+                };
+
+                // Generate emoji buttons with skin tone variants
+                return Object.entries(emojiCategories).map(([category, emojis]) => {
+                  return emojis.map(baseEmoji => {
+                    // Check if emoji supports skin tones (contains person-related unicode)
+                    const supportsSkinTones = /[\u{1F3C3}-\u{1F3CC}\u{1F44D}-\u{1F450}\u{1F466}-\u{1F469}\u{1F46E}-\u{1F478}\u{1F47C}\u{1F481}-\u{1F483}\u{1F485}-\u{1F487}\u{1F48F}\u{1F491}\u{1F4AA}\u{1F574}\u{1F575}\u{1F57A}\u{1F590}\u{1F595}-\u{1F596}\u{1F64C}-\u{1F64F}\u{1F6A3}\u{1F6B4}-\u{1F6B6}\u{1F6C0}\u{1F6CC}\u{1F90C}-\u{1F90F}\u{1F918}-\u{1F91F}\u{1F926}\u{1F930}-\u{1F939}\u{1F93C}-\u{1F93E}]/u.test(baseEmoji);
+                    
+                    const variants = supportsSkinTones 
+                      ? [baseEmoji + '🏻', baseEmoji + '🏼', baseEmoji + '🏽', baseEmoji + '🏾', baseEmoji + '🏿']
+                      : [];
+
+                    return `<button type="button" class="emoji-btn" data-emoji="${baseEmoji}" data-variants='${JSON.stringify(variants)}' style="
+                      width: 42px;
+                      height: 42px;
+                      border: none;
+                      background: ${isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(0, 0, 0, 0.05)'};
+                      font-size: 22px;
+                      cursor: pointer;
+                      border-radius: 8px;
+                      transition: all 0.2s;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      position: relative;
+                      flex-shrink: 0;
+                    " onmouseover="this.style.background='${isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)'}'; this.style.transform='scale(1.05)'" onmouseout="this.style.background='${isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(0, 0, 0, 0.05)'}'; this.style.transform='scale(1)'">${baseEmoji}${variants.length > 0 ? '<div style="position: absolute; bottom: 1px; right: 1px; width: 5px; height: 5px; background: ' + (isDarkMode ? '#10b981' : '#059669') + '; border-radius: 50%; border: 1px solid ' + (isDarkMode ? '#1e293b' : '#ffffff') + ';"></div>' : ''}</button>`;
+                  }).join('');
+                }).join('');
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emoji Variant Picker Modal -->
+      <div id="emojiVariantModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10001;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div style="
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 24px;
+          max-width: 350px;
+          width: 90%;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+          ">
+            <h3 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0;
+              font-size: 18px;
+              font-weight: 700;
+            ">Choose Skin Tone</h3>
+            <button id="closeVariantPicker" style="
+              width: 32px;
+              height: 32px;
+              border: none;
+              background: none;
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              cursor: pointer;
+              font-size: 18px;
+              border-radius: 8px;
+              transition: all 0.2s;
+            ">×</button>
+          </div>
+          <div style="
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+          " id="variantGrid">
+            <!-- Variants will be populated here -->
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">New Password (optional)</label>
+        <input type="password" id="newPasswordInput" placeholder="Enter new password" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
+          box-sizing: border-box;
+        ">
+        <div id="passwordRequirements" style="
+          margin-top: 8px;
+          font-size: 12px;
+          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+          display: none;
+        ">
+          <div id="lengthReq">• At least 6 characters</div>
+          <div id="numberReq">• At least 1 number</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 24px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Confirm New Password</label>
+        <input type="password" id="confirmPasswordInput" placeholder="Confirm new password" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          transition: all 0.2s;
+          outline: none;
+          box-sizing: border-box;
+        ">
+        <div id="passwordMatchError" style="
+          margin-top: 8px;
+          font-size: 12px;
+          color: #ef4444;
+          display: none;
+        ">Passwords do not match</div>
+      </div>
+      
+      <div style="display: flex; gap: 12px;">
+        <button type="button" id="cancelEditProfile" style="
+          flex: 1;
+          padding: 12px 24px;
+          background: ${isDarkMode ? '#404040' : '#f1f5f9'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">Cancel</button>
+        <button type="submit" id="saveProfile" style="
+          flex: 1;
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">Save Changes</button>
+      </div>
+    </form>
+  `;
+
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
+
+  // Animation
+  setTimeout(() => {
+    modalOverlay.style.opacity = '1';
+    modal.style.transform = 'scale(1)';
+  }, 10);
+
+  // Load current user data
+  loadCurrentProfileData();
+
+  // Setup event listeners
+  setupEditProfileListeners();
+
+  function closeModal() {
+    modalOverlay.style.opacity = '0';
+    modal.style.transform = 'scale(0.9)';
+    setTimeout(() => {
+      if (document.body.contains(modalOverlay)) {
+        document.body.removeChild(modalOverlay);
+      }
+    }, 300);
+  }
+
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) {
+      closeModal();
+    }
+  });
+
+  document.getElementById('closeEditProfileModal').addEventListener('click', closeModal);
+  document.getElementById('cancelEditProfile').addEventListener('click', closeModal);
+}
+
+// Load current profile data into edit form
+async function loadCurrentProfileData() {
+  if (!currentUser) return;
+  
+  try {
+    // Get user profile from Firestore
+    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      
+      // Populate form fields
+      const firstNameInput = document.getElementById('firstNameInput');
+      const lastNameInput = document.getElementById('lastNameInput');
+      
+      if (firstNameInput) firstNameInput.value = userData.firstName || '';
+      if (lastNameInput) lastNameInput.value = userData.lastName || '';
+      
+      // Load saved emoji
+      const selectedEmojiElement = document.getElementById('selectedEmoji');
+      if (selectedEmojiElement) {
+        const savedEmoji = userData.avatarEmoji || '👤';
+        selectedEmojiElement.textContent = savedEmoji;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading profile data:', error);
+  }
+}
+
+// Setup edit profile form listeners
+function setupEditProfileListeners() {
+  const newPasswordInput = document.getElementById('newPasswordInput');
+  const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+  const passwordRequirements = document.getElementById('passwordRequirements');
+  const passwordMatchError = document.getElementById('passwordMatchError');
+  const editProfileForm = document.getElementById('editProfileForm');
+
+  // Show password requirements when typing
+  if (newPasswordInput) {
+    newPasswordInput.addEventListener('input', (e) => {
+      const password = e.target.value;
+      
+      if (password.length > 0) {
+        passwordRequirements.style.display = 'block';
+        
+        const validation = validatePassword(password);
+        const lengthReq = document.getElementById('lengthReq');
+        const numberReq = document.getElementById('numberReq');
+        
+        lengthReq.style.color = validation.hasMinLength ? '#10b981' : '#ef4444';
+        numberReq.style.color = validation.hasNumber ? '#10b981' : '#ef4444';
+      } else {
+        passwordRequirements.style.display = 'none';
+      }
+      
+      // Check password match
+      checkPasswordMatch();
+    });
+  }
+
+  // Check password match
+  if (confirmPasswordInput) {
+    confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+  }
+
+  function checkPasswordMatch() {
+    const password = newPasswordInput?.value || '';
+    const confirmPassword = confirmPasswordInput?.value || '';
+    
+    if (confirmPassword.length > 0 && password !== confirmPassword) {
+      passwordMatchError.style.display = 'block';
+    } else {
+      passwordMatchError.style.display = 'none';
+    }
+  }
+
+  // Handle change emoji button click
+  const changeEmojiBtn = document.getElementById('changeEmojiBtn');
+  const emojiPickerModal = document.getElementById('emojiPickerModal');
+  const emojiVariantModal = document.getElementById('emojiVariantModal');
+  const closeEmojiPicker = document.getElementById('closeEmojiPicker');
+  const closeVariantPicker = document.getElementById('closeVariantPicker');
+  
+  if (changeEmojiBtn && emojiPickerModal) {
+    changeEmojiBtn.addEventListener('click', () => {
+      emojiPickerModal.style.display = 'flex';
+    });
+  }
+  
+  if (closeEmojiPicker && emojiPickerModal) {
+    closeEmojiPicker.addEventListener('click', () => {
+      emojiPickerModal.style.display = 'none';
+    });
+  }
+  
+  if (closeVariantPicker && emojiVariantModal) {
+    closeVariantPicker.addEventListener('click', () => {
+      emojiVariantModal.style.display = 'none';
+    });
+  }
+  
+  // Close modal when clicking outside
+  if (emojiPickerModal) {
+    emojiPickerModal.addEventListener('click', (e) => {
+      if (e.target === emojiPickerModal) {
+        emojiPickerModal.style.display = 'none';
+      }
+    });
+  }
+  
+  if (emojiVariantModal) {
+    emojiVariantModal.addEventListener('click', (e) => {
+      if (e.target === emojiVariantModal) {
+        emojiVariantModal.style.display = 'none';
+      }
+    });
+  }
+
+  // Handle emoji selection
+  document.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const button = e.currentTarget;
+      const baseEmoji = button.dataset.emoji;
+      const variants = button.dataset.variants;
+      
+      if (variants && variants !== '[]') {
+        // Show variant picker
+        const variantData = JSON.parse(variants);
+        const variantGrid = document.getElementById('variantGrid');
+        
+        if (variantGrid) {
+          // Include base emoji + all variants
+          const allOptions = [baseEmoji, ...variantData];
+          
+          variantGrid.innerHTML = allOptions.map(emoji => `
+            <button type="button" class="variant-btn" data-emoji="${emoji}" style="
+              width: 64px;
+              height: 64px;
+              border: none;
+              background: ${isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(0, 0, 0, 0.05)'};
+              font-size: 36px;
+              cursor: pointer;
+              border-radius: 16px;
+              transition: all 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " onmouseover="this.style.background='${isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)'}'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='${isDarkMode ? 'rgba(71, 85, 105, 0.2)' : 'rgba(0, 0, 0, 0.05)'}'; this.style.transform='scale(1)'">${emoji}</button>
+          `).join('');
+          
+          // Add event listeners to variant buttons
+          document.querySelectorAll('.variant-btn').forEach(variantBtn => {
+            variantBtn.addEventListener('click', (e) => {
+              const selectedEmoji = e.currentTarget.dataset.emoji;
+              const emojiDisplay = document.getElementById('selectedEmoji');
+              if (emojiDisplay) {
+                emojiDisplay.textContent = selectedEmoji;
+              }
+              
+              // Close both modals
+              emojiPickerModal.style.display = 'none';
+              emojiVariantModal.style.display = 'none';
+            });
+          });
+          
+          // Show variant picker
+          emojiVariantModal.style.display = 'flex';
+        }
+      } else {
+        // No variants, select directly
+        const emojiDisplay = document.getElementById('selectedEmoji');
+        if (emojiDisplay) {
+          emojiDisplay.textContent = baseEmoji;
+        }
+        
+        // Close the picker modal
+        emojiPickerModal.style.display = 'none';
+      }
+    });
+  });
+
+  // Handle form submission
+  if (editProfileForm) {
+    editProfileForm.addEventListener('submit', saveProfileChanges);
+  }
+}
+
+// Save profile changes
+async function saveProfileChanges(e) {
+  e.preventDefault();
+  
+  if (!currentUser) {
+    alert('User not authenticated');
+    return;
+  }
+
+  const firstNameInput = document.getElementById('firstNameInput');
+  const lastNameInput = document.getElementById('lastNameInput');
+  const newPasswordInput = document.getElementById('newPasswordInput');
+  const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+  
+  const firstName = firstNameInput?.value.trim() || '';
+  const lastName = lastNameInput?.value.trim() || '';
+  const newPassword = newPasswordInput?.value || '';
+  const confirmPassword = confirmPasswordInput?.value || '';
+  const selectedEmojiElement = document.getElementById('selectedEmoji');
+  const avatarEmoji = selectedEmojiElement?.textContent || '👤';
+
+  // Validate password if provided
+  if (newPassword) {
+    const validation = validatePassword(newPassword);
+    if (!validation.isValid) {
+      alert('Password must be at least 6 characters long and contain at least 1 number.');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
+  }
+
+  try {
+    // Update user profile in Firestore
+    await setDoc(doc(db, 'users', currentUser.uid), {
+      firstName,
+      lastName,
+      avatarEmoji,
+      email: currentUser.email,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    // Update password if provided
+    if (newPassword) {
+      await updatePassword(currentUser, newPassword);
+    }
+
+    showSuccessMessage('Profile updated successfully!');
+    
+    // Close modal
+    document.body.removeChild(document.getElementById('editProfileModalOverlay'));
+    
+    // Refresh profile view to show updated name
+    loadTabContent('profile');
+    
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    
+    if (error.code === 'auth/requires-recent-login') {
+      alert('Please log out and log back in to change your password.');
+    } else {
+      alert('Error updating profile: ' + error.message);
+    }
+  }
+}
+
 // Make functions available globally
 window.closeGroupSwitcher = closeGroupSwitcher;
 window.selectGroup = selectGroup;
@@ -2755,6 +3536,7 @@ window.promoteMember = promoteMember;
 window.demoteMember = demoteMember;
 window.copyInviteCode = copyInviteCode;
 window.showInviteCodeModal = showInviteCodeModal;
+window.openEditProfileModal = openEditProfileModal;
 
 
 
@@ -3043,24 +3825,6 @@ function createApp() {
           <!-- Content will be loaded here -->
         </div>
         
-        <!-- Version Indicator -->
-        <div id="versionIndicator" style="
-          position: fixed;
-          bottom: 16px;
-          right: 16px;
-          background: rgba(0, 0, 0, 0.7);
-          color: white;
-          padding: 8px 12px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-family: monospace;
-          z-index: 1000;
-          backdrop-filter: blur(10px);
-          cursor: pointer;
-          user-select: none;
-        " title="Click to toggle version info">
-          v1.0.0 - Latest
-        </div>
       </div>
     </div>
   `;
@@ -3077,15 +3841,15 @@ function setupNavigationListeners() {
       // Update active states
       document.querySelectorAll('.nav-tab').forEach(t => {
         t.classList.remove('active');
-        t.style.background = isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(255, 255, 255, 0.15)';
-        t.style.color = isDarkMode ? '#e2e8f0' : '#1a202c';
-        t.style.boxShadow = 'none';
+        // Reset to original tab styles (let CSS handle the theming)
+        t.style.background = '';
+        t.style.color = '';
+        t.style.boxShadow = '';
       });
       
       e.target.classList.add('active');
-      e.target.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
-      e.target.style.color = 'white';
-      e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+      // Let CSS theme handle active tab styling
+      applyGroupTheme(); // Reapply theme to ensure active tab gets group colors
       
       loadTabContent(tabId);
     });
@@ -3309,7 +4073,18 @@ function showMainScreen() {
   document.getElementById('mainScreen').style.display = 'block';
   updateThemeStyles();
   setupNavigationListeners();
+  
+  // Set initial active tab
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  const todosTab = document.querySelector('.nav-tab[data-tab="todos"]');
+  if (todosTab) todosTab.classList.add('active');
+  
   loadTabContent('todos');
+  
+  // Apply theme after DOM is ready
+  setTimeout(() => {
+    applyGroupTheme(); // Ensure group theme is applied to tabs
+  }, 0);
 }
 
 function showLoginScreen() {
@@ -3473,7 +4248,7 @@ function loadTabContent(tab) {
             background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
             color: ${textColor};
             font-size: 16px;
-            font-family: inherit;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             resize: vertical;
             outline: none;
             box-sizing: border-box;
@@ -3807,7 +4582,7 @@ function loadTabContent(tab) {
             background: ${isDarkMode ? '#2c2c2c' : '#f8fafc'};
             color: ${textColor};
             font-size: 16px;
-            font-family: inherit;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             resize: vertical;
             outline: none;
             box-sizing: border-box;
@@ -4173,7 +4948,7 @@ function loadTabContent(tab) {
           transition: all 0.2s;
           outline: none;
           resize: vertical;
-          font-family: inherit;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           box-sizing: border-box;
           margin-bottom: 16px;
         "></textarea>
@@ -4305,7 +5080,7 @@ function loadTabContent(tab) {
             transition: all 0.2s;
             outline: none;
             resize: vertical;
-            font-family: inherit;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             box-sizing: border-box;
             margin-bottom: 16px;
           "></textarea>
@@ -4438,7 +5213,7 @@ function loadTabContent(tab) {
             margin-bottom: 8px;
             font-size: 20px;
             font-weight: 600;
-          ">Welcome, ${currentUser?.email || 'User'}!</h3>
+          ">Welcome, ${firstName || currentUser?.email || 'User'}!</h3>
           <p style="
             color: ${isDarkMode ? '#94a3b8' : '#64748b'};
             margin: 0;
@@ -4585,6 +5360,44 @@ function loadTabContent(tab) {
           </div>
         </div>
         
+        <!-- Edit Profile Section -->
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          padding: 20px;
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
+          border-radius: 16px;
+          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+        ">
+          <div>
+            <h4 style="
+              color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+              margin: 0 0 4px 0;
+              font-size: 16px;
+              font-weight: 600;
+            ">Profile Settings</h4>
+            <p style="
+              color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+              margin: 0;
+              font-size: 14px;
+            ">Update your personal information</p>
+          </div>
+          <button id="editProfileBtn" style="
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+          ">✏️ Edit Profile</button>
+        </div>
+        
         <!-- Dark Mode Toggle -->
         <div style="
           display: flex;
@@ -4639,6 +5452,26 @@ function loadTabContent(tab) {
           align-items: center;
           justify-content: center;
         ">Sign Out</button>
+        
+        <!-- Version Indicator -->
+        <div id="versionIndicator" style="
+          margin-top: 24px;
+          padding: 16px;
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.6)' : 'rgba(248, 250, 252, 0.8)'};
+          border-radius: 12px;
+          border: 1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(226, 232, 240, 0.5)'};
+          text-align: center;
+        ">
+          <div style="
+            color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+            font-size: 12px;
+            font-family: monospace;
+            cursor: pointer;
+            user-select: none;
+          " title="Click to toggle version info">
+            v1.0.0 - Latest
+          </div>
+        </div>
       </div>
       
       <!-- Group Details Modal -->
@@ -4691,6 +5524,9 @@ function loadTabContent(tab) {
     document.getElementById('groupDetailsBtn').addEventListener('click', openGroupDetails);
     document.getElementById('createGroupBtn').addEventListener('click', openCreateGroupModal);
     document.getElementById('joinGroupBtn').addEventListener('click', openJoinGroupModal);
+    
+    // Setup edit profile event listener
+    document.getElementById('editProfileBtn').addEventListener('click', openEditProfileModal);
   }
 }
 
@@ -5342,14 +6178,10 @@ window.closeEditEventModal = () => {
 window.saveEditedEvent = saveEditedEvent;
 
 // Real-time drag and drop with live preview
-let draggedTodoId = null;
-let draggedElement = null;
-let draggedIndex = null;
-let currentPreviewIndex = null;
-let todoItems = [];
 
 window.handleTodoDragStart = (event, todoId, originalIndex) => {
   draggedTodoId = todoId;
+  window.draggedTodoId = todoId;
   draggedIndex = originalIndex;
   currentPreviewIndex = originalIndex;
   draggedElement = event.target.closest('.todo-item');
@@ -5374,6 +6206,7 @@ window.handleTodoDragStart = (event, todoId, originalIndex) => {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     pointer-events: none;
     z-index: 1000;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
   document.body.appendChild(dragImage);
   
@@ -5500,6 +6333,7 @@ window.handleTodoDragEnd = (event) => {
   }
   
   draggedTodoId = null;
+  window.draggedTodoId = null;
   draggedElement = null;
   draggedIndex = null;
   currentPreviewIndex = null;
@@ -5681,14 +6515,10 @@ async function reorderTodosToPosition(draggedId, targetPosition) {
 }
 
 // Grocery drag and drop functionality (same as todos)
-let draggedGroceryId = null;
-let draggedGroceryElement = null;
-let draggedGroceryIndex = null;
-let currentGroceryPreviewIndex = null;
-let groceryItems = [];
 
 window.handleGroceryDragStart = (event, groceryId, originalIndex) => {
   draggedGroceryId = groceryId;
+  window.draggedGroceryId = groceryId;
   draggedGroceryIndex = originalIndex;
   currentGroceryPreviewIndex = originalIndex;
   draggedGroceryElement = event.target.closest('.grocery-item');
@@ -5713,6 +6543,7 @@ window.handleGroceryDragStart = (event, groceryId, originalIndex) => {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     pointer-events: none;
     z-index: 1000;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
   document.body.appendChild(dragImage);
   
@@ -5840,6 +6671,7 @@ window.handleGroceryDragEnd = (event) => {
   }
   
   draggedGroceryId = null;
+  window.draggedGroceryId = null;
   draggedGroceryElement = null;
   draggedGroceryIndex = null;
   currentGroceryPreviewIndex = null;
@@ -6263,8 +7095,8 @@ function renderTodos() {
           transform: translateY(0px);
           cursor: grab;
         " 
-        onmouseover="if (!draggedTodoId) this.style.transform='translateY(-2px)'" 
-        onmouseout="if (!draggedTodoId && !this.classList.contains('dragging')) this.style.transform='translateY(0px)'"
+        onmouseover="if (!window.draggedTodoId) this.style.transform='translateY(-2px)'" 
+        onmouseout="if (!window.draggedTodoId && !this.classList.contains('dragging')) this.style.transform='translateY(0px)'"
         ondragstart="handleTodoDragStart(event, '${todo.id}', ${index});"
         ondragend="handleTodoDragEnd(event);"
         title="Drag to reorder">
@@ -6359,7 +7191,7 @@ function renderTodos() {
             display: flex;
             align-items: center;
             justify-content: center;
-          " onmouseover="if (!draggedTodoId) this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'" onmouseout="if (!draggedTodoId) this.style.background='none'">✏️</button>
+          " onmouseover="if (!window.draggedTodoId) this.style.background='${isDarkMode ? 'rgba(100, 181, 246, 0.1)' : 'rgba(33, 150, 243, 0.1)'}'" onmouseout="if (!window.draggedTodoId) this.style.background='none'">✏️</button>
           <button draggable="false" onclick="deleteTodo('${todo.id}')" style="
             width: 32px;
             height: 32px;
@@ -6374,7 +7206,7 @@ function renderTodos() {
             display: flex;
             align-items: center;
             justify-content: center;
-          " onmouseover="if (!draggedTodoId) this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="if (!draggedTodoId) this.style.background='none'">×</button>
+          " onmouseover="if (!window.draggedTodoId) this.style.background='${isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 59, 48, 0.1)'}'" onmouseout="if (!window.draggedTodoId) this.style.background='none'">×</button>
         </div>
       </div>
     `;
@@ -6709,6 +7541,19 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     console.log('User signed in:', user.email);
     
+    // Load user profile data including firstName
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        firstName = userData.firstName || '';
+        console.log('Loaded firstName:', firstName);
+      }
+    } catch (error) {
+      console.log('Error loading user profile:', error);
+      firstName = '';
+    }
+    
     // Restore saved group context from localStorage
     const savedGroupId = localStorage.getItem('currentGroupId');
     if (savedGroupId) {
@@ -6723,8 +7568,10 @@ onAuthStateChanged(auth, async (user) => {
     // Set up real-time listeners with group context (includes groups listener)
     setupRealtimeListeners();
     
-    // Apply group theme immediately
-    applyGroupTheme();
+    // Apply group theme after DOM is ready
+    setTimeout(() => {
+      applyGroupTheme();
+    }, 100);
     
   } else {
     console.log('User signed out');
