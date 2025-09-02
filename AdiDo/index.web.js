@@ -456,7 +456,7 @@ function openCreateGroupModal() {
         ">
           <option value="">Select group type</option>
           <option value="family">👨‍👩‍👧‍👦 Family Group</option>
-          <option value="couple">💑 Couple</option>
+          <option value="couple">👩‍❤️‍💋‍👨 Couple</option>
           <option value="friends">👥 Friends</option>
           <option value="household">🏠 Household</option>
           <option value="work">💼 Work Team</option>
