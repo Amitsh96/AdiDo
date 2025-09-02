@@ -1491,6 +1491,40 @@ function renderGroupDetails() {
         }).join('')}
       </div>
     </div>
+    
+    ${isOwner && currentGroup.type !== 'personal' ? `
+      <!-- Delete Group Section -->
+      <div style="
+        background: ${isDarkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(254, 226, 226, 1)'};
+        border: 1px solid ${isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'};
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 24px;
+      ">
+        <h4 style="
+          color: ${isDarkMode ? '#fca5a5' : '#dc2626'};
+          margin: 0 0 8px 0;
+          font-size: 16px;
+          font-weight: 600;
+        ">Danger Zone</h4>
+        <p style="
+          color: ${isDarkMode ? '#fca5a5' : '#991b1b'};
+          margin: 0 0 12px 0;
+          font-size: 14px;
+        ">Permanently delete this group and all its data. This action cannot be undone.</p>
+        <button id="deleteGroupBtn" onclick="deleteGroup('${currentGroup.id}', '${currentGroup.name}')" style="
+          padding: 10px 16px;
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        " onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='translateY(0)'">Delete Group</button>
+      </div>
+    ` : ''}
   `;
   
   // Add event listener for close button click outside modal
@@ -2549,20 +2583,49 @@ async function removeMember(groupId, userId, memberName) {
 }
 
 // Delete group (owner only)
-async function deleteGroup(groupId) {
+async function deleteGroup(groupId, groupName) {
+  // Double confirmation for group deletion
+  if (!confirm(`Are you sure you want to delete "${groupName}"?\n\nThis will permanently delete:\n• All todos and grocery items\n• All member data\n• Group settings and history\n\nThis action cannot be undone.`)) {
+    return;
+  }
+  
+  // Second confirmation
+  if (!confirm(`Final confirmation: Delete "${groupName}" forever?`)) {
+    return;
+  }
+  
   try {
+    // Delete all todos in this group
+    const todosQuery = query(collection(db, 'todos'), where('groupId', '==', groupId));
+    const todosSnapshot = await getDocs(todosQuery);
+    const todoDeletePromises = todosSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    
+    // Delete all grocery items in this group
+    const groceryQuery = query(collection(db, 'groceryItems'), where('groupId', '==', groupId));
+    const grocerySnapshot = await getDocs(groceryQuery);
+    const groceryDeletePromises = grocerySnapshot.docs.map(doc => deleteDoc(doc.ref));
+    
+    // Delete all related data
+    await Promise.all([...todoDeletePromises, ...groceryDeletePromises]);
+    
     // Delete the group from Firestore
     await deleteDoc(doc(db, 'Groups', groupId));
     
     // Remove from local groups array
     groups = groups.filter(g => g.id !== groupId);
     
+    // Close group details modal
+    closeGroupDetails();
+    
     // If this was the current group, switch to personal
     if (currentGroupId === groupId) {
       switchToGroup('personal');
     }
     
-    showSuccessMessage('Group deleted successfully!');
+    // Refresh groups list
+    renderGroupsList();
+    
+    alert('Group deleted successfully!');
     
   } catch (error) {
     console.error('Error deleting group:', error);
