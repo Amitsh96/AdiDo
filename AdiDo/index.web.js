@@ -4329,6 +4329,7 @@ function disableDefaultTag(tagName) {
     }
     
     renderExistingTags();
+    refreshFilterButtons(); // Update filter buttons immediately
     refreshCurrentView();
   }
 }
@@ -4340,6 +4341,7 @@ function restoreDefaultTag(tagName) {
     disabledTags.splice(index, 1);
     setDisabledTags(disabledTags);
     renderExistingTags();
+    refreshFilterButtons(); // Update filter buttons immediately
     refreshCurrentView();
   }
 }
@@ -4352,10 +4354,64 @@ function refreshCurrentView() {
   }
 }
 
+function refreshFilterButtons() {
+  // Find and update the filter buttons container
+  const filterContainer = document.querySelector('.category-filter')?.parentNode;
+  if (!filterContainer) return;
+  
+  const textColor = isDarkMode ? '#e2e8f0' : '#1a202c';
+  
+  // Rebuild the filter buttons HTML
+  filterContainer.innerHTML = `
+    ${getAllCategories().map(category => `
+      <button class="category-filter" data-category="${category}" style="
+        padding: 8px 16px;
+        border: none;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: capitalize;
+        background: ${filterCategory === category ? '#667eea' : (isDarkMode ? '#404040' : '#f1f5f9')};
+        color: ${filterCategory === category ? 'white' : textColor};
+      ">${category}</button>
+    `).join('')}
+    <button id="manageTagsBtn" style="
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    ">⚙️ Manage Tags</button>
+  `;
+  
+  // Re-attach event listeners
+  document.querySelectorAll('.category-filter').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      filterCategory = e.target.dataset.category;
+      refreshFilterButtons(); // Update button states
+      renderTodos(); // Update todo list
+    });
+  });
+  
+  // Re-attach manage tags button listener
+  const manageTagsBtn = document.getElementById('manageTagsBtn');
+  if (manageTagsBtn) {
+    manageTagsBtn.addEventListener('click', showTagManagement);
+  }
+}
+
 // Make functions available globally
 window.disableDefaultTag = disableDefaultTag;
 window.restoreDefaultTag = restoreDefaultTag;
 window.refreshCurrentView = refreshCurrentView;
+window.refreshFilterButtons = refreshFilterButtons;
 
 function showError(message, isError = true) {
   const errorDiv = document.getElementById('authError');

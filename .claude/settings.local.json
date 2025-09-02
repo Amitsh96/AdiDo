@@ -20,7 +20,11 @@
       "Bash(python:*)",
       "Bash(npx serve:*)",
       "Bash(npx webpack:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(grep:*)",
+      "Bash(git merge:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [],
     "ask": []
