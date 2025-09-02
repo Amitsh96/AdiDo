@@ -495,7 +495,7 @@ function openCreateGroupModal() {
             font-size: 20px;
             transition: all 0.2s;
           ">👨‍👩‍👧‍👦</button>
-          <button type="button" class="emoji-btn" data-emoji="💑" style="
+          <button type="button" class="emoji-btn" data-emoji="🧑‍❤️‍💋‍👩" style="
             width: 48px;
             height: 48px;
             border: 2px solid transparent;
@@ -504,7 +504,7 @@ function openCreateGroupModal() {
             cursor: pointer;
             font-size: 20px;
             transition: all 0.2s;
-          ">💑</button>
+          ">🧑‍❤️‍💋‍👩</button>
           <button type="button" class="emoji-btn" data-emoji="👥" style="
             width: 48px;
             height: 48px;
