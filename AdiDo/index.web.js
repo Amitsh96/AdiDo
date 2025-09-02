@@ -4322,6 +4322,8 @@ function disableDefaultTag(tagName) {
   if (!disabledTags.includes(tagName)) {
     disabledTags.push(tagName);
     setDisabledTags(disabledTags);
+    renderExistingTags();
+    refreshCurrentView();
   }
 }
 
@@ -6109,7 +6111,7 @@ function renderExistingTags() {
             color: ${isDarkMode ? '#ffffff' : '#333'};
             text-decoration: ${isDisabled ? 'line-through' : 'none'};
           ">${tag.name}</span>
-          <button onclick="${isDisabled ? `restoreDefaultTag('${tag.name}')` : `disableDefaultTag('${tag.name}'); renderExistingTags(); refreshCurrentView();`}" style="
+          <button onclick="${isDisabled ? `restoreDefaultTag('${tag.name}')` : `disableDefaultTag('${tag.name}')`}" style="
             width: 24px;
             height: 24px;
             border: none;
