@@ -456,7 +456,7 @@ function openCreateGroupModal() {
         ">
           <option value="">Select group type</option>
           <option value="family">👨‍👩‍👧‍👦 Family Group</option>
-          <option value="couple">👩‍❤️‍💋‍👨 Couple</option>
+          <option value="couple">👩‍❤️‍👨 Couple</option>
           <option value="friends">👥 Friends</option>
           <option value="household">🏠 Household</option>
           <option value="work">💼 Work Team</option>
@@ -635,7 +635,7 @@ function openCreateGroupModal() {
   groupTypeSelect.addEventListener('change', function() {
     const typeEmojiMap = {
       'family': '👨‍👩‍👧‍👦',
-      'couple': '💑',
+      'couple': '👩‍❤️‍👨',
       'friends': '👥',
       'household': '🏠',
       'work': '💼',
@@ -1506,13 +1506,13 @@ function renderGroupDetails() {
           margin: 0 0 8px 0;
           font-size: 16px;
           font-weight: 600;
-        ">Danger Zone</h4>
+        ">Delete Group</h4>
         <p style="
           color: ${isDarkMode ? '#fca5a5' : '#991b1b'};
           margin: 0 0 12px 0;
           font-size: 14px;
         ">Permanently delete this group and all its data. This action cannot be undone.</p>
-        <button id="deleteGroupBtn" onclick="deleteGroup('${currentGroup.id}', '${currentGroup.name}')" style="
+        <button id="deleteGroupBtn" data-group-id="${currentGroup.id}" data-group-name="${currentGroup.name}" style="
           padding: 10px 16px;
           background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
           color: white;
@@ -1545,6 +1545,16 @@ function renderGroupDetails() {
   if (inviteBtn) {
     inviteBtn.addEventListener('click', () => {
       showInviteCodeModal(currentGroup);
+    });
+  }
+
+  // Add event listener for delete button
+  const deleteBtn = document.getElementById('deleteGroupBtn');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => {
+      const groupId = deleteBtn.dataset.groupId;
+      const groupName = deleteBtn.dataset.groupName;
+      deleteGroup(groupId, groupName);
     });
   }
 }
