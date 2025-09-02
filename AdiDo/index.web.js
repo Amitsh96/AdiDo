@@ -4322,6 +4322,12 @@ function disableDefaultTag(tagName) {
   if (!disabledTags.includes(tagName)) {
     disabledTags.push(tagName);
     setDisabledTags(disabledTags);
+    
+    // If the disabled tag is currently being used as a filter, reset to 'all'
+    if (filterCategory === tagName.toLowerCase()) {
+      filterCategory = 'all';
+    }
+    
     renderExistingTags();
     refreshCurrentView();
   }
