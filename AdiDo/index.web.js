@@ -105,6 +105,233 @@ function closeGroupDetails() {
   document.getElementById('groupDetailsModal').style.display = 'none';
 }
 
+function openEditGroupModal(groupId) {
+  const group = groups.find(g => g.id === groupId);
+  if (!group) return;
+  
+  const modal = document.getElementById('editGroupModal');
+  const content = document.getElementById('editGroupContent');
+  
+  content.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    ">
+      <h3 style="
+        color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      ">Edit Group</h3>
+      <button id="closeEditGroup" style="
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+        cursor: pointer;
+        font-size: 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+      ">×</button>
+    </div>
+
+    <form id="editGroupForm">
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Group Name</label>
+        <input type="text" id="editGroupName" value="${group.name}" required style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          box-sizing: border-box;
+        ">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Group Type</label>
+        <select id="editGroupType" style="
+          width: 100%;
+          height: 48px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 0 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          cursor: pointer;
+          box-sizing: border-box;
+        ">
+          <option value="">Select group type</option>
+          <option value="family" ${group.type === 'family' ? 'selected' : ''}>👨‍👩‍👧‍👦 Family Group</option>
+          <option value="couple" ${group.type === 'couple' ? 'selected' : ''}>👩‍❤️‍👨 Couple</option>
+          <option value="friends" ${group.type === 'friends' ? 'selected' : ''}>👥 Friends</option>
+          <option value="household" ${group.type === 'household' ? 'selected' : ''}>🏠 Household</option>
+          <option value="work" ${group.type === 'work' ? 'selected' : ''}>💼 Work Team</option>
+          <option value="roommates" ${group.type === 'roommates' ? 'selected' : ''}>🏨 Roommates</option>
+          <option value="travel" ${group.type === 'travel' ? 'selected' : ''}>✈️ Travel Group</option>
+          <option value="study" ${group.type === 'study' ? 'selected' : ''}>📚 Study Group</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          color: ${isDarkMode ? '#cbd5e1' : '#374151'};
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        ">Description (optional)</label>
+        <textarea id="editGroupDescription" placeholder="Brief description of the group" style="
+          width: 100%;
+          min-height: 80px;
+          border: 2px solid ${isDarkMode ? '#475569' : '#e2e8f0'};
+          border-radius: 12px;
+          padding: 12px 16px;
+          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'};
+          color: ${isDarkMode ? '#e2e8f0' : '#1a202c'};
+          font-size: 16px;
+          font-family: inherit;
+          resize: vertical;
+          box-sizing: border-box;
+        ">${group.description || ''}</textarea>
+      </div>
+
+      <div style="
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      ">
+        <button type="button" id="cancelEditGroup" style="
+          padding: 12px 24px;
+          background: ${isDarkMode ? '#475569' : '#e2e8f0'};
+          color: ${isDarkMode ? '#e2e8f0' : '#475569'};
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Cancel</button>
+        <button type="submit" style="
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Save Changes</button>
+      </div>
+    </form>
+  `;
+
+  // Setup event listeners
+  document.getElementById('closeEditGroup').addEventListener('click', closeEditGroupModal);
+  document.getElementById('cancelEditGroup').addEventListener('click', closeEditGroupModal);
+  document.getElementById('editGroupForm').addEventListener('submit', (e) => saveGroupChanges(e, groupId));
+
+  // Setup emoji auto-update for type selection
+  const editGroupTypeSelect = document.getElementById('editGroupType');
+  editGroupTypeSelect.addEventListener('change', function() {
+    const typeEmojiMap = {
+      'family': '👨‍👩‍👧‍👦',
+      'couple': '👩‍❤️‍👨',
+      'friends': '👥',
+      'household': '🏠',
+      'work': '💼',
+      'roommates': '🏨',
+      'travel': '✈️',
+      'study': '📚'
+    };
+    
+    const newEmoji = typeEmojiMap[this.value];
+    if (newEmoji && group.emoji !== newEmoji) {
+      // You could add emoji preview here if desired
+    }
+  });
+
+  modal.style.display = 'flex';
+}
+
+function closeEditGroupModal() {
+  document.getElementById('editGroupModal').style.display = 'none';
+}
+
+async function saveGroupChanges(e, groupId) {
+  e.preventDefault();
+  
+  const groupName = document.getElementById('editGroupName').value.trim();
+  const groupType = document.getElementById('editGroupType').value;
+  const groupDescription = document.getElementById('editGroupDescription').value.trim();
+  
+  if (!groupName) {
+    alert('Please enter a group name');
+    return;
+  }
+  
+  try {
+    // Get the emoji for the new type
+    const typeEmojiMap = {
+      'family': '👨‍👩‍👧‍👦',
+      'couple': '👩‍❤️‍👨',
+      'friends': '👥',
+      'household': '🏠',
+      'work': '💼',
+      'roommates': '🏨',
+      'travel': '✈️',
+      'study': '📚'
+    };
+    
+    const updatedGroup = {
+      name: groupName,
+      type: groupType,
+      description: groupDescription,
+      emoji: typeEmojiMap[groupType] || '👥',
+      updatedAt: serverTimestamp()
+    };
+    
+    // Update in Firestore
+    await updateDoc(doc(db, 'Groups', groupId), updatedGroup);
+    
+    // Update local groups array
+    const groupIndex = groups.findIndex(g => g.id === groupId);
+    if (groupIndex !== -1) {
+      groups[groupIndex] = { ...groups[groupIndex], ...updatedGroup };
+    }
+    
+    // Close modal and refresh UI
+    closeEditGroupModal();
+    renderGroupDetails(); // Refresh group details
+    renderGroupsList(); // Refresh groups list
+    loadTabContent(currentTab); // Refresh current tab
+    
+    alert('Group updated successfully!');
+    
+  } catch (error) {
+    console.error('Error updating group:', error);
+    alert('Error updating group. Please try again.');
+  }
+}
+
 // Load user profiles for group members
 async function loadUserProfiles(groups) {
   const userIds = new Set();
@@ -1319,17 +1546,35 @@ function renderGroupDetails() {
         font-size: 24px;
         font-weight: 700;
       ">Group Details</h3>
-      <button id="closeGroupDetails" style="
-        width: 32px;
-        height: 32px;
-        border: none;
-        background: none;
-        color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-        cursor: pointer;
-        font-size: 20px;
-        border-radius: 8px;
-        transition: all 0.2s;
-      " onclick="closeGroupDetails()">×</button>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        ${isOwner && currentGroup.type !== 'personal' ? `
+          <button id="editGroupBtn" data-group-id="${currentGroup.id}" style="
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          " title="Edit Group">✏️</button>
+        ` : ''}
+        <button id="closeGroupDetails" style="
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: none;
+          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+          cursor: pointer;
+          font-size: 20px;
+          border-radius: 8px;
+          transition: all 0.2s;
+        " onclick="closeGroupDetails()">×</button>
+      </div>
     </div>
     
     <!-- Group Info -->
@@ -1555,6 +1800,15 @@ function renderGroupDetails() {
       const groupId = deleteBtn.dataset.groupId;
       const groupName = deleteBtn.dataset.groupName;
       deleteGroup(groupId, groupName);
+    });
+  }
+
+  // Add event listener for edit button
+  const editBtn = document.getElementById('editGroupBtn');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      const groupId = editBtn.dataset.groupId;
+      openEditGroupModal(groupId);
     });
   }
 }
@@ -5318,9 +5572,9 @@ function loadTabContent(tab) {
               font-size: 14px;
             ">${getGroupDisplayName(getCurrentGroup())}</p>
           </div>
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
             <button id="groupDetailsBtn" style="
-              padding: 8px 16px;
+              padding: 10px 16px;
               background: linear-gradient(135deg, #10b981 0%, #059669 100%);
               color: white;
               border: none;
@@ -5330,9 +5584,10 @@ function loadTabContent(tab) {
               cursor: pointer;
               transition: all 0.2s;
               box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+              width: 100%;
             ">👥 Details</button>
             <button id="switchGroupBtn" style="
-              padding: 8px 16px;
+              padding: 10px 16px;
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
               color: white;
               border: none;
@@ -5342,6 +5597,7 @@ function loadTabContent(tab) {
               cursor: pointer;
               transition: all 0.2s;
               box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+              width: 100%;
             ">Switch Group</button>
           </div>
         </div>
@@ -5572,6 +5828,32 @@ function loadTabContent(tab) {
           box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
         ">
           <!-- Content will be dynamically inserted here by renderGroupDetails() -->
+        </div>
+      </div>
+      
+      <!-- Edit Group Modal -->
+      <div id="editGroupModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1001;
+        justify-content: center;
+        align-items: center;
+      ">
+        <div id="editGroupContent" style="
+          background: ${isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 32px;
+          width: 90%;
+          max-width: 500px;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        ">
+          <!-- Content will be dynamically inserted here by openEditGroupModal() -->
         </div>
       </div>
     `;
